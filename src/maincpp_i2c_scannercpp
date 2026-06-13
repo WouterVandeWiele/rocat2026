@@ -1,0 +1,50 @@
+#include <Arduino.h>
+#include <Wire.h> 
+#include "rocat_constants.h"
+
+void scanner_loop() {
+    ESP_LOGI(LOG_I2C_SCAN_TAG, "I2C scanner. Scanning ...");
+    uint16_t count = 0;
+
+    for (uint16_t i = 0; i <= 255; i++)
+    {
+        Wire.beginTransmission (i);          // Begin I2C transmission Address (i)
+        int res = Wire.endTransmission ();
+        // Serial.println(res);
+        if (res == 0)  // Receive 0 = success (ACK response) 
+        {
+        Serial.printf("Found address: %2d (0x%2x)\n", i, i);
+        count++;
+        }
+    }
+    Serial.printf("Found %d device(s).\n", count);
+}
+
+
+void setup() {
+    Serial.begin(115200);
+    Wire.begin(pin_gio_sda, pin_gio_scl, 400000UL);
+}
+
+uint8_t read_io(uint8_t address) {
+    Wire.beginTransmission(0x20);
+    Wire.write(address);
+    Wire.endTransmission(false);
+
+
+    Wire.requestFrom(0x20, 1);
+    uint8_t data = Wire.read();
+    Wire.endTransmission(true);
+    return data;
+}
+
+void loop() {
+    scanner_loop();
+
+    Serial.printf("input   %2x %2x\n", read_io(0), read_io(1) );
+    Serial.printf("output  %2x %2x\n", read_io(2), read_io(3) );
+    Serial.printf("pol inv %2x %2x\n", read_io(4), read_io(5) );
+    Serial.printf("cfg out %2x %2x\n", read_io(6), read_io(7) );
+
+    delay(10000);
+}
