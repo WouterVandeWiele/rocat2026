@@ -41,6 +41,8 @@ TouchDriver touch(pin_touch_pet_sens_1, pin_touch_pet_sens_2);
 LdrDriver ldr(pin_gpio_ldr);
 
 DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery);
+
+
 extern bool motionDetected;
 // ── animation gallery ─────────────────────────────────────────────────────────
 
@@ -184,7 +186,10 @@ void setup() {
   {
     Serial.printf("Failed to communicate. Check wiring and address(%x) of SX1509.\n", sx1509_address);
     while (1)
-      ; // If we fail to communicate, loop forever.
+    {
+      // If we fail to communicate, loop forever.
+      delay(1000);
+    }
   }
 
   Serial.println("Setting up esp wakeup manager...");
@@ -192,20 +197,20 @@ void setup() {
 
   Serial.println("Setting up LCD...");
   display.lcd_init();
-//   display.setTextWrap(false);
+  // display.setTextWrap(false);
 //   enterGallery(0);
 
-//   Serial.println("Setting up motor driver...");
-//   motor.begin();
-//   motor.enable(true);
-//   motor.standby(true);
-//   motor.set_motor1(-20);
-//   motor.set_motor2(200);
+  Serial.println("Setting up motor driver...");
+  motor.begin();
+  motor.enable(true);
+  motor.standby(true);
+  motor.set_motor1(-20);
+  motor.set_motor2(200);
 
-//   Serial.println("Setting up ws2812...");
-//   leds.setup();
-//   leds.power_on();
-//   leds.begin();
+  Serial.println("Setting up ws2812...");
+  leds.setup();
+  leds.power_on();
+  leds.begin();
   
   Serial.println("Setting up RTC driver...");
   rtcDriver.begin();
@@ -232,20 +237,20 @@ void setup() {
   Serial.println("Setting up battery driver...");
   battery.begin();
 
-//   Serial.println("Setting up audio driver...");
+  Serial.println("Setting up audio driver...");
 
-//   File root = SPIFFS.open("/");
-//   File f = root.openNextFile();
-//   while (f) {
-//       Serial.printf("  %s  %u bytes\n", f.name(), f.size());
-//       f = root.openNextFile();
-//   }
+  File root = SPIFFS.open("/");
+  File f = root.openNextFile();
+  while (f) {
+      Serial.printf("  %s  %u bytes\n", f.name(), f.size());
+      f = root.openNextFile();
+  }
 
-//   audio.begin();
-//   audio.play("/3 Doors Down - Kryptonite.mp3");
+  audio.begin();
+  audio.play("/3 Doors Down - Kryptonite.mp3");
 
-//   Serial.println("Setting up touch pins...");
-//   touch.begin();
+  Serial.println("Setting up touch pins...");
+  touch.begin();
   Serial.println("Setting up LDR driver...");
   ldr.begin();
 
@@ -254,7 +259,7 @@ void setup() {
 }
 
 void loop() {
-
+  // audio.tick();
     if (motionDetected) {
         // Reset de vlag direct om volgende interrupts op te vangen
         motionDetected = false;
@@ -314,28 +319,16 @@ void loop() {
     //     }
     // }
 
-    // Toggle pin_gio_sda (GPIO26) between 0 and 255 every second.
-    // If the audio driver patch is working, this pin is in digital mode
-    // and analogWrite will produce a PWM signal visible on a scope.
-    // Remove once verified.
-    // static unsigned long _last_toggle = 0;
-    // static bool _sda_high = false;
-    // if (millis() - _last_toggle >= 1000) {
-    //     _last_toggle = millis();
-    //     _sda_high = !_sda_high;
-    //     analogWrite(pin_gio_sda, _sda_high ? 255 : 0);
-    //     Serial.printf("[gpio26] analogWrite %d\n", _sda_high ? 255 : 0);
-    // }
 
-    // switch (touch.tick()) {
-    //     case PetGesture::DOWN: Serial.println("[touch] pet down"); break;
-    //     case PetGesture::UP:   Serial.println("[touch] pet up");   break;
-    //     default: break;
-    // }
+    switch (touch.tick()) {
+        case PetGesture::DOWN: Serial.println("[touch] pet down"); break;
+        case PetGesture::UP:   Serial.println("[touch] pet up");   break;
+        default: break;
+    }
     // touch.tickB();
 
     
-    // leds.led_breath();
+    leds.led_breath();
     static unsigned long _last_print = 0;
     if (millis() - _last_print >= 500) {
         _last_print = millis();

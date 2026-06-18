@@ -11,7 +11,7 @@ const uint8_t pin_touch_pet_sens_2 = 33;
 
 const uint8_t pin_aud_sig = 25;
 
-const uint8_t pin_gio_sda = 26;
+const uint8_t pin_gio_sda = 0;
 const uint8_t pin_gio_scl = 27;
 // const uint8_t pin_gio_ws2812 = 15;
 #define pin_gio_ws2812 15
