@@ -4,8 +4,9 @@
 DebugCLI* DebugCLI::_instance = nullptr;
 
 DebugCLI::DebugCLI(PowerManagerDriver& power, RtcDriver& rtc,
-                   AccelerometerDriver& accel, BatteryDriver& battery)
-    : _power(power), _rtc(rtc), _accel(accel), _battery(battery) {}
+                   AccelerometerDriver& accel, BatteryDriver& battery,
+                   WifiDriver& wifi)
+    : _power(power), _rtc(rtc), _accel(accel), _battery(battery), _wifi(wifi) {}
 
 void DebugCLI::begin() {
     _instance = this;
@@ -40,6 +41,8 @@ void DebugCLI::begin() {
     Command cmdGpio = _cli.addCommand("gpio", _on_gpio);
     cmdGpio.addPositionalArgument("pin");
     cmdGpio.addPositionalArgument("value");
+
+    _cli.addCommand("wifi_reset", _on_wifi_reset);
 
     _cli.setOnError(_on_error);
 
@@ -135,6 +138,11 @@ void DebugCLI::_on_gpio(cmd* c) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, value ? HIGH : LOW);
     Serial.printf("[CLI] gpio %d = %d\n", pin, value ? 1 : 0);
+}
+
+void DebugCLI::_on_wifi_reset(cmd* c) {
+    Serial.println("[CLI] resetting WiFi credentials");
+    _instance->_wifi.reset();
 }
 
 void DebugCLI::_on_error(cmd_error* e) {

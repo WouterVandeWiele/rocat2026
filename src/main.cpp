@@ -22,6 +22,7 @@
 #include "touch_driver.h"
 #include "ldr_driver.h"
 #include "adc_keys.h"
+#include "wifi_driver.h"
 
 #include "debug_cli.h"
 
@@ -42,8 +43,9 @@ TouchDriver touch(pin_touch_pet_sens_1, pin_touch_pet_sens_2);
 LdrDriver ldr(pin_gpio_ldr);
 AdcKeys adcKeys(pin_gpio_js_a_c1, pin_gpio_js_b_d1, pin_gpio_js_c1_2,
                 pin_gpio_js_a_c2, pin_gpio_js_b_d2);
+WifiDriver wifi("ROCAT");
 
-DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery);
+DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery, wifi);
 
 
 extern bool motionDetected;
@@ -260,6 +262,9 @@ void setup() {
   Serial.println("Setting up ADC keys...");
   adcKeys.begin();
 
+  Serial.println("Setting up WiFi...");
+  wifi.begin();
+
   Serial.println("Setting up debug CLI...");
   debugCLI.begin();
 }
@@ -341,6 +346,8 @@ void loop() {
     //     }
     // }
 
+
+    wifi.process();
 
     adcKeys.tick();
     ButtonPress bp;
