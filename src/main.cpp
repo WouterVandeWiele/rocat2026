@@ -21,6 +21,7 @@
 // #include "audio_driver_pwm.h"
 #include "touch_driver.h"
 #include "ldr_driver.h"
+#include "adc_keys.h"
 
 #include "debug_cli.h"
 
@@ -39,6 +40,8 @@ AudioDriver audio(io, pin_aud_en, pin_aud_sig);
 // AudioDriverPWM audio(io, pin_aud_en, pin_aud_sig);
 TouchDriver touch(pin_touch_pet_sens_1, pin_touch_pet_sens_2);
 LdrDriver ldr(pin_gpio_ldr);
+AdcKeys adcKeys(pin_gpio_js_a_c1, pin_gpio_js_b_d1, pin_gpio_js_c1_2,
+                pin_gpio_js_a_c2, pin_gpio_js_b_d2);
 
 DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery);
 
@@ -247,15 +250,34 @@ void setup() {
   }
 
   audio.begin();
-  audio.play("/3 Doors Down - Kryptonite.mp3");
+  // audio.play("/3 Doors Down - Kryptonite.mp3");
 
   Serial.println("Setting up touch pins...");
   touch.begin();
   Serial.println("Setting up LDR driver...");
   ldr.begin();
 
+  Serial.println("Setting up ADC keys...");
+  adcKeys.begin();
+
   Serial.println("Setting up debug CLI...");
   debugCLI.begin();
+}
+
+static const char* gem_key_name(byte key) {
+    switch (key) {
+        case GEM_KEY_UP:     return "UP";
+        case GEM_KEY_DOWN:   return "DOWN";
+        case GEM_KEY_LEFT:   return "LEFT";
+        case GEM_KEY_RIGHT:  return "RIGHT";
+        case GEM_KEY_OK:     return "OK";
+        case GEM_KEY_CANCEL: return "CANCEL";
+        case GEM_KEY_FUNC_1_DOWN: return "FUNC_1_DOWN";
+        case GEM_KEY_FUNC_2_UP: return "FUNC_2_UP";
+        case GEM_KEY_FUNC_3_LEFT: return "FUNC_3_LEFT";
+        case GEM_KEY_FUNC_4_RIGHT: return "FUNC_4_RIGHT";
+        default:             return "NONE";
+    }
 }
 
 void loop() {
@@ -319,6 +341,13 @@ void loop() {
     //     }
     // }
 
+
+    adcKeys.tick();
+    ButtonPress bp;
+    while (xQueueReceive(adcKeys.queue(), &bp, 0) == pdTRUE) {
+        Serial.printf("[adc_keys] %s\n", gem_key_name(bp.button));
+    }
+    // adcKeys.debug();
 
     switch (touch.tick()) {
         case PetGesture::DOWN: Serial.println("[touch] pet down"); break;
