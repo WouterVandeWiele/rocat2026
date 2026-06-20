@@ -17,8 +17,9 @@
 #include "rtc_driver.h"
 #include "accelerometer_driver.h"
 #include "battery_driver.h"
-#include "audio_driver.h"   // uses I2S DAC — enables both DAC1(GPIO25) and DAC2(GPIO26=SDA), breaking I2C
+// #include "audio_driver.h"   // uses I2S DAC — enables both DAC1(GPIO25) and DAC2(GPIO26=SDA), breaking I2C
 // #include "audio_driver_pwm.h"
+#include "audio_web_driver.h"
 #include "touch_driver.h"
 #include "ldr_driver.h"
 #include "adc_keys.h"
@@ -37,15 +38,16 @@ RtcDriver rtcDriver(Wire);
 AccelerometerDriver accelerometer(lis);
 BatteryDriver battery(lis, io);
 
-AudioDriver audio(io, pin_aud_en, pin_aud_sig);
+// AudioDriver audio(io, pin_aud_en, pin_aud_sig);
 // AudioDriverPWM audio(io, pin_aud_en, pin_aud_sig);
+AudioWebDriver webAudio(io, pin_aud_en, pin_aud_sig);
 TouchDriver touch(pin_touch_pet_sens_1, pin_touch_pet_sens_2);
 LdrDriver ldr(pin_gpio_ldr);
 AdcKeys adcKeys(pin_gpio_js_a_c1, pin_gpio_js_b_d1, pin_gpio_js_c1_2,
                 pin_gpio_js_a_c2, pin_gpio_js_b_d2);
 WifiDriver wifi("ROCAT");
 
-DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery, wifi);
+DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery, wifi, webAudio);
 
 
 extern bool motionDetected;
@@ -242,16 +244,16 @@ void setup() {
   Serial.println("Setting up battery driver...");
   battery.begin();
 
-  Serial.println("Setting up audio driver...");
+  // Serial.println("Setting up audio driver...");
 
-  File root = SPIFFS.open("/");
-  File f = root.openNextFile();
-  while (f) {
-      Serial.printf("  %s  %u bytes\n", f.name(), f.size());
-      f = root.openNextFile();
-  }
+  // File root = SPIFFS.open("/");
+  // File f = root.openNextFile();
+  // while (f) {
+  //     Serial.printf("  %s  %u bytes\n", f.name(), f.size());
+  //     f = root.openNextFile();
+  // }
 
-  audio.begin();
+  // audio.begin();
   // audio.play("/3 Doors Down - Kryptonite.mp3");
 
   Serial.println("Setting up touch pins...");
@@ -264,6 +266,10 @@ void setup() {
 
   Serial.println("Setting up WiFi...");
   wifi.begin();
+
+  Serial.println("Setting up web audio...");
+  webAudio.begin();
+  webAudio.play(0);
 
   Serial.println("Setting up debug CLI...");
   debugCLI.begin();

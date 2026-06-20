@@ -5,8 +5,8 @@ DebugCLI* DebugCLI::_instance = nullptr;
 
 DebugCLI::DebugCLI(PowerManagerDriver& power, RtcDriver& rtc,
                    AccelerometerDriver& accel, BatteryDriver& battery,
-                   WifiDriver& wifi)
-    : _power(power), _rtc(rtc), _accel(accel), _battery(battery), _wifi(wifi) {}
+                   WifiDriver& wifi, AudioWebDriver& webAudio)
+    : _power(power), _rtc(rtc), _accel(accel), _battery(battery), _wifi(wifi), _webAudio(webAudio) {}
 
 void DebugCLI::begin() {
     _instance = this;
@@ -43,6 +43,12 @@ void DebugCLI::begin() {
     cmdGpio.addPositionalArgument("value");
 
     _cli.addCommand("wifi_reset", _on_wifi_reset);
+
+    Command cmdRadioPlay = _cli.addCommand("radio_play", _on_radio_play);
+    cmdRadioPlay.addPositionalArgument("station", "0");
+    _cli.addCommand("radio_stop", _on_radio_stop);
+    _cli.addCommand("radio_next", _on_radio_next);
+    _cli.addCommand("radio_prev", _on_radio_prev);
 
     _cli.setOnError(_on_error);
 
@@ -143,6 +149,24 @@ void DebugCLI::_on_gpio(cmd* c) {
 void DebugCLI::_on_wifi_reset(cmd* c) {
     Serial.println("[CLI] resetting WiFi credentials");
     _instance->_wifi.reset();
+}
+
+void DebugCLI::_on_radio_play(cmd* c) {
+    Command cmd(c);
+    int idx = cmd.getArgument("station").getValue().toInt();
+    _instance->_webAudio.play(idx);
+}
+
+void DebugCLI::_on_radio_stop(cmd* c) {
+    _instance->_webAudio.stop();
+}
+
+void DebugCLI::_on_radio_next(cmd* c) {
+    _instance->_webAudio.next();
+}
+
+void DebugCLI::_on_radio_prev(cmd* c) {
+    _instance->_webAudio.previous();
 }
 
 void DebugCLI::_on_error(cmd_error* e) {

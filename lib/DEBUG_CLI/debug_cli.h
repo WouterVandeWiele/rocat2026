@@ -5,13 +5,14 @@
 #include "../ACCELEROMETER_DRIVER/accelerometer_driver.h"
 #include "../BATTERY_DRIVER/battery_driver.h"
 #include "../WIFI_DRIVER/wifi_driver.h"
+#include "../AUDIO_WEB_DRIVER/audio_web_driver.h"
 #include <SimpleCLI.h>
 
 class DebugCLI {
 public:
     DebugCLI(PowerManagerDriver& power, RtcDriver& rtc,
              AccelerometerDriver& accel, BatteryDriver& battery,
-             WifiDriver& wifi);
+             WifiDriver& wifi, AudioWebDriver& webAudio);
 
     void begin();
 
@@ -21,6 +22,7 @@ private:
     AccelerometerDriver& _accel;
     BatteryDriver&       _battery;
     WifiDriver&          _wifi;
+    AudioWebDriver&      _webAudio;
     SimpleCLI            _cli;
 
     static DebugCLI* _instance;
@@ -37,6 +39,10 @@ private:
     static void _on_get_battery(cmd* c);
     static void _on_gpio(cmd* c);
     static void _on_wifi_reset(cmd* c);
+    static void _on_radio_play(cmd* c);
+    static void _on_radio_stop(cmd* c);
+    static void _on_radio_next(cmd* c);
+    static void _on_radio_prev(cmd* c);
     static void _on_error(cmd_error* e);
 
     static void _task(void* arg);
