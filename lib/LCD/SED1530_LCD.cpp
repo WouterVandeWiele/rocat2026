@@ -279,17 +279,24 @@ void SED1530_LCD::lcd_init() {
 
   
 
-  ESP_LOGI(LOG_LCD_TAG, "lcd init done");
+  // ESP_LOGI(LOG_LCD_TAG, "lcd init done");
+  Serial.println("lcd init done");
 
 }
 
 void SED1530_LCD::begin()
 {
+  Serial.println("LCD I2C setup");
   std::lock_guard<std::mutex> lck(i2c_operations);
+  Serial.println("LCD I2C setup - mutex");
   sx.pinMode(RW,  OUTPUT);
+  Serial.println("LCD I2C setup - RW");
   sx.pinMode(BACKLIGHT,  OUTPUT);
+  Serial.println("LCD I2C setup - Backlight");
   sx.pinMode(POWER,  OUTPUT);
-
+  Serial.println("LCD I2C setup - Power");
+  
+  Serial.println("LCD I2C write");
   sx.digitalWrite(RW, LOW);
   sx.digitalWrite(BACKLIGHT, HIGH);
   sx.digitalWrite(POWER, HIGH);
@@ -365,7 +372,6 @@ void SED1530_LCD::setPage(uint8_t page) {
   this->writeCommand(GLCD_CMD_SET_PAGE(page));
   this->writeCommand(0x08);
   this->writeCommand(0x00);
-    
 }
 void SED1530_LCD::setColumn(uint8_t row) {
   this->writeCommand(GLCD_CMD_SET_COLUMN_HIGH(row >> 4));
@@ -442,7 +448,6 @@ void SED1530_LCD::display(void) {
 }
 
 void SED1530_LCD::updateWholeScreen(void) {
-  // std::lock_guard<std::mutex> lck(io_operations);
   // uint32_t bytes = ((w + 7) / 8) * h;
   // if ((buffer = (uint8_t *)malloc(bytes))) {
   //   memset(buffer, 0, bytes);

@@ -5,7 +5,7 @@
 
 class WifiDriver : public DriverBase {
 public:
-    WifiDriver(const char* ap_name = "ROCAT", const char* ap_password = nullptr);
+    WifiDriver(const char* ap_prefix = "ROCAT", const char* ap_password = nullptr);
 
     void begin() override;
 
@@ -28,7 +28,9 @@ public:
 
 private:
     WiFiManager _wm;
-    const char* _ap_name;
+    const char* _ap_prefix;
     const char* _ap_password;
+    char        _ap_name[24];
     bool        _portal_stopped = false;
+    bool        _showing_wifi_qr = false;
 };

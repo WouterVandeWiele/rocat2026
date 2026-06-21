@@ -3,6 +3,7 @@
 #include "rocat_constants.h"
 
 #include "GUI_Utils.h"
+#include "GUI_QR.h"
 #include "WeatherAnim.h"
 #include "Weather.h"
 
@@ -370,58 +371,58 @@ void loop() {
     // touch.tickB();
 
     
-    leds.led_breath();
-    static unsigned long _last_print = 0;
-    if (millis() - _last_print >= 500) {
-        _last_print = millis();
+    // leds.led_breath();
+    // static unsigned long _last_print = 0;
+    // if (millis() - _last_print >= 500) {
+    //     _last_print = millis();
 
-        float ldrVal   = ldr.read();
-        float batt  = battery.get_voltage();
-        float ax       = accelerometer.get_accel_x();
-        float ay       = accelerometer.get_accel_y();
-        float az       = accelerometer.get_accel_z();
-        float temp     = accelerometer.get_temp();
+    //     float ldrVal   = ldr.read();
+    //     float batt  = battery.get_voltage();
+    //     float ax       = accelerometer.get_accel_x();
+    //     float ay       = accelerometer.get_accel_y();
+    //     float az       = accelerometer.get_accel_z();
+    //     float temp     = accelerometer.get_temp();
 
-        // Serial.printf(">ldr_ohm:%.1f\n", ldrVal);
-        // Serial.printf(">batt:%.2f\n",       batt);
-        // Serial.printf(">accel_x:%.3f\n", ax);
-        // Serial.printf(">accel_y:%.3f\n", ay);
-        // Serial.printf(">accel_z:%.3f\n", az);
-        // Serial.printf(">temp:%.3f\n",    temp);
+    //     // Serial.printf(">ldr_ohm:%.1f\n", ldrVal);
+    //     // Serial.printf(">batt:%.2f\n",       batt);
+    //     // Serial.printf(">accel_x:%.3f\n", ax);
+    //     // Serial.printf(">accel_y:%.3f\n", ay);
+    //     // Serial.printf(">accel_z:%.3f\n", az);
+    //     // Serial.printf(">temp:%.3f\n",    temp);
 
-        char line[20];
-        clearCanvas();
-        display.setTextSize(1);
-        display.setTextColor(GLCD_COLOR_SET);
+    //     char line[20];
+    //     clearCanvas();
+    //     display.setTextSize(1);
+    //     display.setTextColor(GLCD_COLOR_SET);
 
-        // Two columns of 3 values, each value shown as a label line
-        // followed by its reading on the next line.
-        const int colX[2] = { 0, 50 };
+    //     // Two columns of 3 values, each value shown as a label line
+    //     // followed by its reading on the next line.
+    //     const int colX[2] = { 0, 50 };
 
-        display.setCursor(colX[0], 0);  display.print("LDR");
-        snprintf(line, sizeof(line), "%.0f", ldrVal);
-        display.setCursor(colX[0], 8);  display.print(line);
+    //     display.setCursor(colX[0], 0);  display.print("LDR");
+    //     snprintf(line, sizeof(line), "%.0f", ldrVal);
+    //     display.setCursor(colX[0], 8);  display.print(line);
 
-        display.setCursor(colX[0], 16); display.print("Batt");
-        snprintf(line, sizeof(line), "%.2f", batt);
-        display.setCursor(colX[0], 24); display.print(line);
+    //     display.setCursor(colX[0], 16); display.print("Batt");
+    //     snprintf(line, sizeof(line), "%.2f", batt);
+    //     display.setCursor(colX[0], 24); display.print(line);
 
-        display.setCursor(colX[0], 32); display.print("AccX");
-        snprintf(line, sizeof(line), "%.2f", ax);
-        display.setCursor(colX[0], 40); display.print(line);
+    //     display.setCursor(colX[0], 32); display.print("AccX");
+    //     snprintf(line, sizeof(line), "%.2f", ax);
+    //     display.setCursor(colX[0], 40); display.print(line);
 
-        display.setCursor(colX[1], 0);  display.print("AccY");
-        snprintf(line, sizeof(line), "%.2f", ay);
-        display.setCursor(colX[1], 8);  display.print(line);
+    //     display.setCursor(colX[1], 0);  display.print("AccY");
+    //     snprintf(line, sizeof(line), "%.2f", ay);
+    //     display.setCursor(colX[1], 8);  display.print(line);
 
-        display.setCursor(colX[1], 16); display.print("AccZ");
-        snprintf(line, sizeof(line), "%.2f", az);
-        display.setCursor(colX[1], 24); display.print(line);
+    //     display.setCursor(colX[1], 16); display.print("AccZ");
+    //     snprintf(line, sizeof(line), "%.2f", az);
+    //     display.setCursor(colX[1], 24); display.print(line);
 
-        display.setCursor(colX[1], 32); display.print("Temp");
-        snprintf(line, sizeof(line), "%.2f", temp);
-        display.setCursor(colX[1], 40); display.print(line);
+    //     display.setCursor(colX[1], 32); display.print("Temp");
+    //     snprintf(line, sizeof(line), "%.2f", temp);
+    //     display.setCursor(colX[1], 40); display.print(line);
 
-        display.display();
-    }
+    //     display.display();
+    // }
 }

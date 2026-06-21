@@ -1,5 +1,6 @@
 #include "GUI_Utils.h"
 #include <string.h>
+#include <Arduino.h>
 
 extern SED1530_LCD display;
 

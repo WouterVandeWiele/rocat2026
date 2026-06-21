@@ -1,10 +1,14 @@
 #include "wifi_driver.h"
+#include "GUI_QR.h"
 #include <Arduino.h>
 
-WifiDriver::WifiDriver(const char* ap_name, const char* ap_password)
-    : DriverBase(), _ap_name(ap_name), _ap_password(ap_password) {}
+WifiDriver::WifiDriver(const char* ap_prefix, const char* ap_password)
+    : DriverBase(), _ap_prefix(ap_prefix), _ap_password(ap_password), _ap_name{} {}
 
 void WifiDriver::begin() {
+    uint32_t id = (uint32_t)(ESP.getEfuseMac() >> 24);
+    snprintf(_ap_name, sizeof(_ap_name), "%s_%06X", _ap_prefix, id);
+
     _wm.setConfigPortalBlocking(false);
     _wm.setCleanConnect(true);
     _wm.setShowInfoUpdate(false);
@@ -18,6 +22,8 @@ void WifiDriver::begin() {
                       ssid().c_str(), local_ip().c_str());
     } else {
         Serial.printf("[wifi] config portal started on AP: %s\n", _ap_name);
+        GUI_QR::show_wifi(_ap_name, _ap_password);
+        _showing_wifi_qr = true;
     }
 }
 
@@ -25,9 +31,18 @@ bool WifiDriver::process() {
     if (!_portal_stopped && is_connected()) {
         _wm.stopWebPortal();
         _portal_stopped = true;
+        _showing_wifi_qr = false;
+        GUI_QR::clear();
         Serial.printf("[wifi] connected to %s — IP: %s\n",
                       ssid().c_str(), local_ip().c_str());
     }
+
+    if (_showing_wifi_qr && WiFi.softAPgetStationNum() > 0) {
+        _showing_wifi_qr = false;
+        GUI_QR::show_url("http://192.168.4.1");
+        Serial.println("[wifi] client connected to AP, showing portal QR");
+    }
+
     return _wm.process();
 }
 

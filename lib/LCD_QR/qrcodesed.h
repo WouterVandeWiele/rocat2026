@@ -3,7 +3,6 @@
 #include "qrcodedisplay.h"
 #include "SED1530_LCD.h"
 
-
 class QRcode_SED1530 : public QRcodeDisplay
 {
 	private:
@@ -15,6 +14,5 @@ class QRcode_SED1530 : public QRcodeDisplay
 		void init();
 		void screenwhite();
 		void screenupdate();
+		int  getOffsetX() const { return offsetsX; }
 };
-
-#
