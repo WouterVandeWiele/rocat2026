@@ -288,18 +288,17 @@ void SED1530_LCD::begin()
 {
   Serial.println("LCD I2C setup");
   std::lock_guard<std::mutex> lck(i2c_operations);
-  Serial.println("LCD I2C setup - mutex");
   sx.pinMode(RW,  OUTPUT);
-  Serial.println("LCD I2C setup - RW");
   sx.pinMode(BACKLIGHT,  OUTPUT);
-  Serial.println("LCD I2C setup - Backlight");
   sx.pinMode(POWER,  OUTPUT);
-  Serial.println("LCD I2C setup - Power");
-  
-  Serial.println("LCD I2C write");
+
   sx.digitalWrite(RW, LOW);
-  sx.digitalWrite(BACKLIGHT, HIGH);
+  sx.digitalWrite(BACKLIGHT, LOW);
+  sx.digitalWrite(POWER, LOW);
+  delay(100);
   sx.digitalWrite(POWER, HIGH);
+  delay(200);
+  sx.digitalWrite(BACKLIGHT, HIGH);
 }
 void SED1530_LCD::resetDisplay() {
   // std::lock_guard<std::mutex> lck(io_operations);
