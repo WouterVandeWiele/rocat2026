@@ -1,6 +1,7 @@
 #pragma once
 
 #include "driver_base.h"
+#include "nvs_store.h"
 #include <SparkFunSX1509.h>
 
 #include <AudioTools.h>
@@ -8,21 +9,17 @@
 #include <AudioTools/Disk/AudioSourceURL.h>
 #include <AudioTools/AudioCodecs/CodecMP3Helix.h>
 
-struct Station {
-    const char* name;
-    const char* url;
-};
-
 class AudioWebDriver : public DriverBase {
 public:
-    static constexpr int STATION_COUNT = 5;
-
-    static const Station STATIONS[STATION_COUNT];
-    static const char*   STATION_URLS[STATION_COUNT];
+    static constexpr int MAX_STATIONS = NvsStore::MAX_STATIONS;
 
     AudioWebDriver(SX1509& sx, uint8_t pin_aud_en, uint8_t pin_aud_sig);
 
     void begin() override;
+
+    void setStations(const Station* stations, int count);
+    int  stationCount() const { return _station_count; }
+
     void play(int station_index = 0);
     void stop();
     void next();
@@ -30,11 +27,18 @@ public:
 
     int         current_index() { return _source.index(); }
     const char* current_name();
+    void        setVolume(float vol);
+    float       volume();
 
 private:
     SX1509&          _sx;
     const uint8_t    _pin_aud_en;
     const uint8_t    _pin_aud_sig;
+
+    Station          _stations[MAX_STATIONS];
+    const char*      _urls[MAX_STATIONS + 1];
+    int              _station_count = 0;
+
     URLStream        _urlStream;
     AudioSourceURL   _source;
     AnalogAudioStream _out;
@@ -44,4 +48,6 @@ private:
 
     void _enable(bool on);
     static void _copyTask(void* param);
+
+    SemaphoreHandle_t _guard = nullptr;
 };

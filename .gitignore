@@ -3,10 +3,10 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-data*/
+data2/
+data/
 docs/
 .vscode/
 logs/
-patches/
 test*/
 *.zip

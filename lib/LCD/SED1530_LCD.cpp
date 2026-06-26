@@ -218,8 +218,6 @@ void SED1530_LCD::writeData(uint8_t lcdData) {
     delayMicroseconds(1);
     GPIO.out_w1ts |= BIT(EN);
     delayMicroseconds(1);
-    // delayMicroseconds(10);
-    // gpio_output_set(0, BIT(EN), 0, 0);
     GPIO.out_w1tc |= BIT(EN);
     delayMicroseconds(1);
 
@@ -247,6 +245,12 @@ void SED1530_LCD::writeData(uint8_t lcdData) {
     io->set_output(LCD_CONTROL_PORT, LCD_A0, (LCD_A0 | LCD_RW | LCD_EN));
     io->set_output(LCD_CONTROL_PORT, (LCD_A0 | LCD_EN), (LCD_A0 | LCD_RW | LCD_EN));
 
+  #endif
+}
+
+void SED1530_LCD::idleDataBus() {
+  #if defined(EXPERIMENTAL_GPIO_ESP32)
+    GPIO.out_w1tc = mask | BIT(A0);
   #endif
 }
 
@@ -281,7 +285,7 @@ void SED1530_LCD::lcd_init() {
 
   // ESP_LOGI(LOG_LCD_TAG, "lcd init done");
   Serial.println("lcd init done");
-
+  idleDataBus();
 }
 
 void SED1530_LCD::begin()
@@ -303,11 +307,13 @@ void SED1530_LCD::begin()
 void SED1530_LCD::resetDisplay() {
   // std::lock_guard<std::mutex> lck(io_operations);
   this->writeCommand(GLCD_CMD_RESET);
+  idleDataBus();
 }
 
 void SED1530_LCD::invertDisplay(bool i) {
   // std::lock_guard<std::mutex> lck(io_operations);
   this->writeCommand(0xA6 + (i ? 0:1));
+  idleDataBus();
 }
 
 /*  Control de markers boven in het display
@@ -348,6 +354,7 @@ void SED1530_LCD::setMarker(uint8_t marker, bool on) {
     this->writeCommand(lowNibble);   //Set column Address low nibble
     
     this->writeData(on ? 1 : 0);
+    idleDataBus();
 }
 
 /*
@@ -357,6 +364,7 @@ void SED1530_LCD::resetColumnAdress(void) {
   // std::lock_guard<std::mutex> lck(io_operations);
   this->writeCommand(0x10);
   this->writeCommand(0x00);
+  idleDataBus();
 }
 
 /*
@@ -365,6 +373,7 @@ Constrast is a value between 0 and 31.
 void SED1530_LCD::setContrast(uint8_t contrast) {
   // std::lock_guard<std::mutex> lck(io_operations);
   this->writeCommand(0x80 + contrast & 0x3F);
+  idleDataBus();
 }
 
 void SED1530_LCD::setPage(uint8_t page) {
@@ -420,6 +429,7 @@ void SED1530_LCD::clearScreen(uint16_t color) {
       this->writeData(color);
     }
   }
+  idleDataBus();
 }
 
 void SED1530_LCD::fillScreen(uint16_t color) {
@@ -440,6 +450,7 @@ void SED1530_LCD::fillScreen(uint16_t color) {
       this->writeData(data);
     }
   }
+  idleDataBus();
 }
 
 void SED1530_LCD::display(void) {
@@ -485,6 +496,7 @@ void SED1530_LCD::updateWholeScreen(void) {
       this->writeData(data);
     }
   }
+  idleDataBus();
 }
 
 void SED1530_LCD::updatePages(uint8_t firstPage, uint8_t lastPage) {
@@ -501,4 +513,5 @@ void SED1530_LCD::updatePages(uint8_t firstPage, uint8_t lastPage) {
       this->writeData(data);
     }
   }
+  idleDataBus();
 }

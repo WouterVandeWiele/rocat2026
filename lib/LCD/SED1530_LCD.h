@@ -229,6 +229,7 @@ private:
 
   void setPage(uint8_t page);
   void setColumn(uint8_t row);
+  void idleDataBus();
 
   // TwoWire *_theWire = NULL; ///< The underlying hardware I2C
 };

@@ -27,6 +27,9 @@
 #include "wifi_driver.h"
 
 #include "debug_cli.h"
+#include "web_dashboard.h"
+#include "data_broker.h"
+#include "nvs_store.h"
 
 SX1509 io;
 LIS3DH lis(I2C_MODE, lis3dh_address);
@@ -48,7 +51,10 @@ AdcKeys adcKeys(pin_gpio_js_a_c1, pin_gpio_js_b_d1, pin_gpio_js_c1_2,
                 pin_gpio_js_a_c2, pin_gpio_js_b_d2);
 WifiDriver wifi("ROCAT");
 
+NvsStore nvsStore;
+
 DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery, wifi, webAudio);
+WebDashboard dashboard(nvsStore);
 
 
 extern bool motionDetected;
@@ -268,9 +274,27 @@ void setup() {
   Serial.println("Setting up WiFi...");
   wifi.begin();
 
+  Serial.println("Setting up NVS store...");
+  nvsStore.begin("rocat");
+  {
+      Station stations[NvsStore::MAX_STATIONS];
+      int count = nvsStore.loadStations(stations, NvsStore::MAX_STATIONS);
+      webAudio.setStations(stations, count);
+  }
+
   Serial.println("Setting up web audio...");
   webAudio.begin();
-  webAudio.play(0);
+  webAudio.setVolume(nvsStore.lastVolume());
+  if (nvsStore.lastPlaying()) {
+      webAudio.play(nvsStore.lastStation());
+  }
+
+  DataBroker::instance().update(Topic::AUDIO, [&](Blackboard& b) {
+      b.audio_station_index = webAudio.current_index();
+      b.audio_station_name  = webAudio.current_name();
+      b.audio_volume        = webAudio.volume();
+      b.audio_playing       = nvsStore.lastPlaying();
+  });
 
   Serial.println("Setting up debug CLI...");
   debugCLI.begin();
@@ -356,22 +380,129 @@ void loop() {
 
     wifi.process();
 
+    static bool dashboardStarted = false;
+    if (!dashboardStarted && wifi.is_connected()) {
+        dashboard.begin();
+        dashboardStarted = true;
+    }
+    dashboard.update();
+
+    // Publish sensor data to broker at ~5 Hz
+    auto& db = DataBroker::instance();
+    static unsigned long lastBrokerPoll = 0;
+    if (millis() - lastBrokerPoll >= 200) {
+        lastBrokerPoll = millis();
+
+        db.update(Topic::ACCEL, [&](Blackboard& b) {
+            b.accel_x    = accelerometer.get_accel_x();
+            b.accel_y    = accelerometer.get_accel_y();
+            b.accel_z    = accelerometer.get_accel_z();
+            b.accel_temp = accelerometer.get_temp();
+        });
+
+        db.update(Topic::BATTERY, [&](Blackboard& b) {
+            b.battery_voltage  = battery.get_voltage();
+            b.battery_raw_adc  = battery.get_raw_adc();
+            b.battery_charging = battery.is_charging();
+        });
+
+        db.update(Topic::LDR, [&](Blackboard& b) {
+            b.ldr_ohms = ldr.read();
+        });
+
+        db.update(Topic::RTC_TIME, [&](Blackboard& b) {
+            DateTime dt = rtcDriver.get_time();
+            b.rtc_year   = dt.year();
+            b.rtc_month  = dt.month();
+            b.rtc_day    = dt.day();
+            b.rtc_hour   = dt.hour();
+            b.rtc_minute = dt.minute();
+            b.rtc_second = dt.second();
+        });
+
+        db.update(Topic::WIFI, [&](Blackboard& b) {
+            b.wifi_connected = wifi.is_connected();
+            if (b.wifi_connected) {
+                strncpy(b.wifi_ip, wifi.local_ip().c_str(), sizeof(b.wifi_ip) - 1);
+                strncpy(b.wifi_ssid, wifi.ssid().c_str(), sizeof(b.wifi_ssid) - 1);
+            }
+        });
+    }
+
+    // Apply commands from blackboard to hardware
+    if (db.consume(Topic::MOTOR)) {
+        auto snap = db.snapshot();
+        motor.enable(snap.motor_enabled);
+        motor.standby(snap.motor_standby);
+        motor.set_motor1(snap.motor1_speed);
+        motor.set_motor2(snap.motor2_speed);
+    }
+
+    if (db.consume(Topic::LED)) {
+        auto snap = db.snapshot();
+        leds.set_all(snap.led_r, snap.led_g, snap.led_b);
+        leds.set_brightness(snap.led_brightness);
+        leds.show();
+    }
+
+    if (db.consume(Topic::AUDIO)) {
+        auto snap = db.snapshot();
+        switch (snap.audio_cmd) {
+            case AudioCmd::PLAY: webAudio.play(snap.audio_station_index); break;
+            case AudioCmd::STOP: webAudio.stop(); break;
+            case AudioCmd::NEXT: webAudio.next(); break;
+            case AudioCmd::PREV: webAudio.previous(); break;
+            case AudioCmd::RELOAD: {
+                Station stations[NvsStore::MAX_STATIONS];
+                int count = nvsStore.loadStations(stations, NvsStore::MAX_STATIONS);
+                webAudio.setStations(stations, count);
+                break;
+            }
+            case AudioCmd::VOLUME:
+                webAudio.setVolume(snap.audio_volume);
+                break;
+            default: break;
+        }
+        bool isPlaying = (snap.audio_cmd == AudioCmd::STOP) ? false
+                       : (snap.audio_cmd == AudioCmd::PLAY || snap.audio_cmd == AudioCmd::NEXT || snap.audio_cmd == AudioCmd::PREV) ? true
+                       : snap.audio_playing;
+        db.update(Topic::AUDIO, [&](Blackboard& b) {
+            b.audio_cmd           = AudioCmd::NONE;
+            b.audio_station_index = webAudio.current_index();
+            b.audio_station_name  = webAudio.current_name();
+            b.audio_volume        = webAudio.volume();
+            b.audio_playing       = isPlaying;
+        });
+        nvsStore.savePlaybackState(webAudio.current_index(), isPlaying, webAudio.volume());
+    }
+
     adcKeys.tick();
     ButtonPress bp;
     while (xQueueReceive(adcKeys.queue(), &bp, 0) == pdTRUE) {
         Serial.printf("[adc_keys] %s\n", gem_key_name(bp.button));
+        db.update(Topic::BUTTON, [&](Blackboard& b) {
+            b.last_button = bp.button;
+        });
     }
     // adcKeys.debug();
 
-    switch (touch.tick()) {
-        case PetGesture::DOWN: Serial.println("[touch] pet down"); break;
-        case PetGesture::UP:   Serial.println("[touch] pet up");   break;
-        default: break;
+    {
+        PetGesture g = touch.tick();
+        switch (g) {
+            case PetGesture::DOWN: Serial.println("[touch] pet down"); break;
+            case PetGesture::UP:   Serial.println("[touch] pet up");   break;
+            default: break;
+        }
+        if (g != PetGesture::NONE) {
+            db.update(Topic::TOUCH, [g](Blackboard& b) {
+                b.last_gesture = static_cast<uint8_t>(g);
+            });
+        }
     }
     // touch.tickB();
 
     
-    // leds.led_breath();
+    leds.led_breath();
     // static unsigned long _last_print = 0;
     // if (millis() - _last_print >= 500) {
     //     _last_print = millis();
