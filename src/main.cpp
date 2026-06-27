@@ -222,9 +222,8 @@ void setup() {
   motor.set_motor2(200);
 
   Serial.println("Setting up ws2812...");
-  leds.setup();
-  leds.power_on();
   leds.begin();
+  leds.power(HIGH);
   
   Serial.println("Setting up RTC driver...");
   rtcDriver.begin();

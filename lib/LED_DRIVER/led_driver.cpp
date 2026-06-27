@@ -7,27 +7,40 @@ LedDriver::LedDriver(SX1509& sx, uint8_t pwr_pin)
     : DriverBase(), _sx(sx), _pwr_pin(pwr_pin),
       _strip(count_ws2812, pin_gio_ws2812, NEO_GRB + NEO_KHZ800) {}
 
-void LedDriver::setup() {
-    std::lock_guard<std::mutex> lck(i2c_operations);
-    _sx.pinMode(_pwr_pin, OUTPUT);
-}
-
 void LedDriver::begin() {
+    {
+        std::lock_guard<std::mutex> lck(i2c_operations);
+        _sx.pinMode(_pwr_pin, OUTPUT);
+        _sx.digitalWrite(_pwr_pin, LOW);
+    }
+
+    // Pin is already OUTPUT LOW from ESP-IDF calls in setup().
+    // begin() will call pinMode() which may glitch, but LEDs have
+    // no power so it doesn't matter.
     _strip.begin();
     _strip.setBrightness(100);
-    _strip.clear();
-    _strip.show();
 }
 
-void LedDriver::power_on() {
-    std::lock_guard<std::mutex> lck(i2c_operations);
-    _sx.digitalWrite(_pwr_pin, HIGH);
+void LedDriver::power(uint8_t on) {
+    if (!on) {
+        _strip.clear();
+        _strip.show();
+    }
+    {
+        std::lock_guard<std::mutex> lck(i2c_operations);
+        _sx.digitalWrite(_pwr_pin, on);
+    }
+    if (on) {
+        delay(1);
+        _strip.clear();
+        _strip.show();
+    }
 }
 
-void LedDriver::power_off() {
-    std::lock_guard<std::mutex> lck(i2c_operations);
-    _sx.digitalWrite(_pwr_pin, LOW);
-}
+// void LedDriver::power_off() {
+//     std::lock_guard<std::mutex> lck(i2c_operations);
+//     _sx.digitalWrite(_pwr_pin, LOW);
+// }
 
 void LedDriver::show() {
     _strip.show();

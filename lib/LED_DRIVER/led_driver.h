@@ -7,10 +7,10 @@
 class LedDriver : public DriverBase {
 public:
     LedDriver(SX1509& sx, uint8_t pwr_pin);
-    void setup();
+    // void setup();
     void begin() override;
-    void power_on();
-    void power_off();
+    void power(uint8_t on);
+    // void power_off();
 
     void show();
 
