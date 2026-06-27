@@ -56,6 +56,11 @@ const byte pin_mcu_keep_awake = 14;
 const byte pin_rgb_pwr = 15;
 
 /*
+    Temperature Sensor
+*/
+const uint8_t tmp102_address = 0x48;
+
+/*
     Accelerometer
 */
 const uint8_t lis3dh_address = 0x18;
