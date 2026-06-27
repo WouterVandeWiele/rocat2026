@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ROCAT Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>ROCAT Dashboard</h1>
+    <span id="status" class="status offline">Disconnected</span>
+  </header>
+
+  <main>
+    <!-- Sensors -->
+    <section class="card">
+      <h2>Sensors</h2>
+      <div class="grid">
+        <div class="sensor">
+          <label>Battery</label>
+          <span id="battery">--</span> V
+          <span id="charging" class="badge"></span>
+        </div>
+        <div class="sensor">
+          <label>Temperature</label>
+          <span id="temp">--</span> &deg;C
+        </div>
+        <div class="sensor">
+          <label>Light (LDR)</label>
+          <span id="ldr">--</span> &Omega;
+        </div>
+        <div class="sensor">
+          <label>Time</label>
+          <span id="time">--</span>
+        </div>
+        <div class="sensor">
+          <label>NTP</label>
+          <span id="ntpStatus">--</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Time Settings -->
+    <section class="card">
+      <h2>Time Settings</h2>
+      <div class="control-row">
+        <label>Set Time</label>
+        <input type="datetime-local" id="setTimeInput">
+        <button onclick="setTime()" class="toggle">Set</button>
+      </div>
+      <div class="control-row">
+        <label>NTP Sync</label>
+        <button onclick="sendCmd('ntp_sync')" class="toggle">Sync Now</button>
+      </div>
+      <div class="control-row">
+        <label>NTP Server</label>
+        <input type="text" id="ntpServer" placeholder="pool.ntp.org">
+        <button onclick="setNtp()" class="toggle">Save</button>
+      </div>
+      <div class="control-row">
+        <label>Timezone</label>
+        <select id="tzSelect" onchange="setTz(this.value)">
+          <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Brussels (CET/CEST)</option>
+          <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/London (GMT/BST)</option>
+          <option value="EST5EDT,M3.2.0,M11.1.0">US Eastern (EST/EDT)</option>
+          <option value="CST6CDT,M3.2.0,M11.1.0">US Central (CST/CDT)</option>
+          <option value="MST7MDT,M3.2.0,M11.1.0">US Mountain (MST/MDT)</option>
+          <option value="PST8PDT,M3.2.0,M11.1.0">US Pacific (PST/PDT)</option>
+          <option value="JST-9">Asia/Tokyo (JST)</option>
+          <option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Australia/Sydney (AEST/AEDT)</option>
+          <option value="UTC0">UTC</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Accelerometer -->
+    <section class="card">
+      <h2>Accelerometer</h2>
+      <div class="grid three">
+        <div class="sensor">
+          <label>X</label>
+          <span id="accelX">--</span> g
+        </div>
+        <div class="sensor">
+          <label>Y</label>
+          <span id="accelY">--</span> g
+        </div>
+        <div class="sensor">
+          <label>Z</label>
+          <span id="accelZ">--</span> g
+        </div>
+      </div>
+    </section>
+
+    <!-- Motors -->
+    <section class="card">
+      <h2>Motors</h2>
+      <div class="control-row">
+        <label>Enable</label>
+        <button id="motorToggle" class="toggle" onclick="toggleMotor()">OFF</button>
+      </div>
+      <div class="control-row">
+        <label>Motor 1: <span id="m1val">0</span></label>
+        <input type="range" id="motor1" min="-255" max="255" value="0" oninput="sendMotor(1, this.value)">
+      </div>
+      <div class="control-row">
+        <label>Motor 2: <span id="m2val">0</span></label>
+        <input type="range" id="motor2" min="-255" max="255" value="0" oninput="sendMotor(2, this.value)">
+      </div>
+    </section>
+
+    <!-- LEDs -->
+    <section class="card">
+      <h2>LEDs</h2>
+      <div class="led-preview" id="ledPreview"></div>
+      <div class="control-row">
+        <label>Red: <span id="rval">0</span></label>
+        <input type="range" id="ledR" min="0" max="255" value="0" class="red" oninput="sendLed()">
+      </div>
+      <div class="control-row">
+        <label>Green: <span id="gval">0</span></label>
+        <input type="range" id="ledG" min="0" max="255" value="0" class="green" oninput="sendLed()">
+      </div>
+      <div class="control-row">
+        <label>Blue: <span id="bval">0</span></label>
+        <input type="range" id="ledB" min="0" max="255" value="0" class="blue" oninput="sendLed()">
+      </div>
+      <div class="control-row">
+        <label>Brightness: <span id="brval">128</span></label>
+        <input type="range" id="ledBr" min="0" max="255" value="128" oninput="sendBrightness(this.value)">
+      </div>
+    </section>
+
+    <!-- Radio -->
+    <section class="card">
+      <h2>Web Radio</h2>
+      <div class="radio-display">
+        Now playing: <span id="radioName">--</span>
+      </div>
+      <div class="control-row">
+        <label>Volume: <span id="volval">100</span>%</label>
+        <input type="range" id="radioVol" min="0" max="100" value="100" oninput="sendVolume(this.value)">
+      </div>
+      <div class="radio-controls">
+        <button onclick="sendCmd('radio_prev')">&laquo; Prev</button>
+        <button onclick="sendCmd('radio_stop')" class="stop">Stop</button>
+        <button onclick="sendCmd('radio_next')">Next &raquo;</button>
+      </div>
+
+      <h3>Stations</h3>
+      <div id="stationList"></div>
+      <div class="station-form">
+        <input type="text" id="newStName" placeholder="Station name" maxlength="31">
+        <input type="text" id="newStUrl" placeholder="Stream URL" maxlength="127">
+        <button onclick="addStation()" class="play">Add</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

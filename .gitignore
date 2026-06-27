@@ -4,7 +4,7 @@
 .vscode/launch.json
 .vscode/ipch
 data2/
-data/
+data/*.mp3
 docs/
 .vscode/
 logs/

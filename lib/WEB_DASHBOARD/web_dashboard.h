@@ -3,16 +3,18 @@
 #include <ESPAsyncWebServer.h>
 
 class NvsStore;
+class TimeManager;
 
 class WebDashboard {
 public:
-    WebDashboard(NvsStore& store);
+    WebDashboard(NvsStore& store, TimeManager& time);
 
     void begin();
     void update();
 
 private:
-    NvsStore& _store;
+    NvsStore&     _store;
+    TimeManager&  _time;
 
     AsyncWebServer* _server = nullptr;
     AsyncWebSocket* _ws     = nullptr;

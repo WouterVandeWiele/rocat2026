@@ -1,6 +1,7 @@
 #include "web_dashboard.h"
 #include "data_broker.h"
 #include "nvs_store.h"
+#include "time_manager.h"
 
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
@@ -8,8 +9,8 @@
 
 static constexpr unsigned long UPDATE_INTERVAL_MS = 1000;
 
-WebDashboard::WebDashboard(NvsStore& store)
-    : _store(store) {}
+WebDashboard::WebDashboard(NvsStore& store, TimeManager& time)
+    : _store(store), _time(time) {}
 
 void WebDashboard::begin() {
     if (_started) return;
@@ -150,6 +151,31 @@ void WebDashboard::_handleCommand(const char* data, size_t len) {
             _broadcastStationList();
         }
     }
+    else if (strcmp(cmd, "set_time") == 0) {
+        RocatTime t;
+        t.year   = doc["year"]   | 2026;
+        t.month  = doc["month"]  | 1;
+        t.day    = doc["day"]    | 1;
+        t.hour   = doc["hour"]   | 0;
+        t.minute = doc["minute"] | 0;
+        t.second = doc["second"] | 0;
+        _time.setTime(t);
+    }
+    else if (strcmp(cmd, "set_ntp") == 0) {
+        const char* server = doc["server"] | "";
+        if (server[0]) {
+            _time.setNtpServer(server);
+        }
+    }
+    else if (strcmp(cmd, "ntp_sync") == 0) {
+        _time.requestSync();
+    }
+    else if (strcmp(cmd, "set_tz") == 0) {
+        const char* tz = doc["tz"] | "";
+        if (tz[0]) {
+            _time.setTimezone(tz);
+        }
+    }
 }
 
 void WebDashboard::update() {
@@ -181,9 +207,11 @@ void WebDashboard::_broadcastSensors(AsyncWebSocketClient* client) {
 
     char timeBuf[20];
     snprintf(timeBuf, sizeof(timeBuf), "%04d-%02d-%02d %02d:%02d:%02d",
-             snap.rtc_year, snap.rtc_month, snap.rtc_day,
-             snap.rtc_hour, snap.rtc_minute, snap.rtc_second);
-    doc["time"] = timeBuf;
+             snap.time.year, snap.time.month, snap.time.day,
+             snap.time.hour, snap.time.minute, snap.time.second);
+    doc["time"]        = timeBuf;
+    doc["ntpSynced"]   = snap.ntp_synced;
+    doc["ntpSyncAgo"]  = snap.ntp_last_sync_ago / 1000;
 
     doc["radioStation"] = snap.audio_station_index;
     doc["radioName"]    = snap.audio_station_name;

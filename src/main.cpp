@@ -30,6 +30,7 @@
 #include "web_dashboard.h"
 #include "data_broker.h"
 #include "nvs_store.h"
+#include "time_manager.h"
 
 SX1509 io;
 LIS3DH lis(I2C_MODE, lis3dh_address);
@@ -52,9 +53,10 @@ AdcKeys adcKeys(pin_gpio_js_a_c1, pin_gpio_js_b_d1, pin_gpio_js_c1_2,
 WifiDriver wifi("ROCAT");
 
 NvsStore nvsStore;
+TimeManager timeManager(rtcDriver, wifi, nvsStore);
 
 DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery, wifi, webAudio);
-WebDashboard dashboard(nvsStore);
+WebDashboard dashboard(nvsStore, timeManager);
 
 
 extern bool motionDetected;
@@ -275,6 +277,9 @@ void setup() {
 
   Serial.println("Setting up NVS store...");
   nvsStore.begin("rocat");
+
+  Serial.println("Setting up time manager...");
+  timeManager.begin();
   {
       Station stations[NvsStore::MAX_STATIONS];
       int count = nvsStore.loadStations(stations, NvsStore::MAX_STATIONS);
@@ -378,6 +383,7 @@ void loop() {
 
 
     wifi.process();
+    timeManager.update();
 
     static bool dashboardStarted = false;
     if (!dashboardStarted && wifi.is_connected()) {
@@ -410,13 +416,9 @@ void loop() {
         });
 
         db.update(Topic::RTC_TIME, [&](Blackboard& b) {
-            DateTime dt = rtcDriver.get_time();
-            b.rtc_year   = dt.year();
-            b.rtc_month  = dt.month();
-            b.rtc_day    = dt.day();
-            b.rtc_hour   = dt.hour();
-            b.rtc_minute = dt.minute();
-            b.rtc_second = dt.second();
+            b.time = timeManager.now();
+            b.ntp_synced = timeManager.hasNtpSynced();
+            b.ntp_last_sync_ago = timeManager.timeSinceNtpSync();
         });
 
         db.update(Topic::WIFI, [&](Blackboard& b) {

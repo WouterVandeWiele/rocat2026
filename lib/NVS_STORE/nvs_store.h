@@ -27,6 +27,14 @@ public:
     bool  lastPlaying();
     float lastVolume();
 
+    // NTP server
+    void saveNtpServer(const char* server);
+    void loadNtpServer(char* buf, size_t len);
+
+    // Timezone (POSIX TZ string)
+    void saveTimezone(const char* tz);
+    void loadTimezone(char* buf, size_t len);
+
 private:
     Preferences _prefs;
     const char* _ns = "rocat";

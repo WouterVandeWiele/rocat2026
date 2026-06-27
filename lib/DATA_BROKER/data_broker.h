@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <mutex>
+#include "time_manager.h"
 
 enum class Topic : uint8_t {
     ACCEL, BATTERY, LDR, RTC_TIME,
@@ -27,13 +28,10 @@ struct Blackboard {
     // LDR
     float ldr_ohms = 0.0f;
 
-    // RTC (decomposed to avoid RTClib dependency)
-    uint16_t rtc_year   = 0;
-    uint8_t  rtc_month  = 0;
-    uint8_t  rtc_day    = 0;
-    uint8_t  rtc_hour   = 0;
-    uint8_t  rtc_minute = 0;
-    uint8_t  rtc_second = 0;
+    // Time
+    RocatTime time = {};
+    unsigned long ntp_last_sync_ago = 0;
+    bool          ntp_synced        = false;
 
     // Motors
     int16_t motor1_speed  = 0;

@@ -164,3 +164,31 @@ float NvsStore::lastVolume() {
     _prefs.end();
     return val;
 }
+
+void NvsStore::saveNtpServer(const char* server) {
+    _prefs.begin(_ns, false);
+    _prefs.putString("ntp_srv", server);
+    _prefs.end();
+}
+
+void NvsStore::loadNtpServer(char* buf, size_t len) {
+    _prefs.begin(_ns, true);
+    String val = _prefs.getString("ntp_srv", "pool.ntp.org");
+    _prefs.end();
+    strncpy(buf, val.c_str(), len - 1);
+    buf[len - 1] = '\0';
+}
+
+void NvsStore::saveTimezone(const char* tz) {
+    _prefs.begin(_ns, false);
+    _prefs.putString("tz", tz);
+    _prefs.end();
+}
+
+void NvsStore::loadTimezone(char* buf, size_t len) {
+    _prefs.begin(_ns, true);
+    String val = _prefs.getString("tz", "CET-1CEST,M3.5.0,M10.5.0/3");
+    _prefs.end();
+    strncpy(buf, val.c_str(), len - 1);
+    buf[len - 1] = '\0';
+}
