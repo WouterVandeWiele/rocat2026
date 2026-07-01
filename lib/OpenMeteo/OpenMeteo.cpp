@@ -1,5 +1,5 @@
 #include "OpenMeteo.h"
-#include <WiFiClientSecure.h>
+#include <WiFiClient.h>
 
 const char* weatherDescription(int code) {
     switch (code) {
@@ -36,20 +36,17 @@ const char* weatherDescription(int code) {
 }
 
 static const char* BASE_URL =
-    "https://api.open-meteo.com/v1/forecast"
+    "http://api.open-meteo.com/v1/forecast"
     "?current=temperature_2m,relative_humidity_2m,apparent_temperature,"
     "is_day,wind_speed_10m,wind_direction_10m,weather_code,"
     "cloud_cover,rain,showers,snowfall,precipitation";
 
-weather_t OpenMeteo::getWeather(float latitude, float longitude) {
+static weather_t _fetch(WiFiClient& client, float latitude, float longitude) {
     weather_t result = {};
 
     String url = String(BASE_URL)
                  + "&latitude="  + String(latitude,  4)
                  + "&longitude=" + String(longitude, 4);
-
-    WiFiClientSecure client;
-    client.setInsecure();  // no cert pinning needed for public forecast API
 
     HTTPClient http;
     http.begin(client, url);
@@ -62,10 +59,9 @@ weather_t OpenMeteo::getWeather(float latitude, float longitude) {
     }
 
     JsonDocument doc;
-    String rawJason = http.getString();
-    Serial.println(rawJason);
-    DeserializationError err = deserializeJson(doc, rawJason);
+    String body = http.getString();
     http.end();
+    DeserializationError err = deserializeJson(doc, body);
 
     if (err) {
         Serial.printf("[OpenMeteo] JSON error: %s\n", err.c_str());
@@ -89,4 +85,13 @@ weather_t OpenMeteo::getWeather(float latitude, float longitude) {
     result.status               = true;
 
     return result;
+}
+
+weather_t OpenMeteo::getWeather(float latitude, float longitude) {
+    WiFiClient client;
+    return _fetch(client, latitude, longitude);
+}
+
+weather_t OpenMeteo::getWeather(float latitude, float longitude, WiFiClient& client) {
+    return _fetch(client, latitude, longitude);
 }

@@ -1,11 +1,19 @@
 #include <Arduino.h>
 #include "driver/gpio.h"
+#include "esp_bt.h"
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 #include "rocat_constants.h"
 
 #include "GUI_Utils.h"
 #include "GUI_QR.h"
 #include "WeatherAnim.h"
 #include "Weather.h"
+#include "carousel_manager.h"
+#include "weather_element.h"
+#include "eye_element.h"
+#include "news_element.h"
+#include "time_element.h"
 
 #include <Wire.h>           // Include the I2C library (required)
 #include <SPIFFS.h>
@@ -28,6 +36,7 @@
 
 #include "debug_cli.h"
 #include "web_dashboard.h"
+#include "web_fetcher.h"
 #include "data_broker.h"
 #include "nvs_store.h"
 #include "time_manager.h"
@@ -55,9 +64,13 @@ WifiDriver wifi("ROCAT");
 NvsStore nvsStore;
 TimeManager timeManager(rtcDriver, wifi, nvsStore);
 
-DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery, wifi, webAudio);
-WebDashboard dashboard(nvsStore, timeManager);
+// DebugCLI debugCLI(wakeup, rtcDriver, accelerometer, battery, wifi, webAudio);
+// WebDashboard dashboard(nvsStore, timeManager);
 
+WeatherElement weatherEl;
+EyeElement     eyeEl;
+NewsElement    newsEl;
+TimeElement    timeEl;
 
 extern bool motionDetected;
 // ── animation gallery ─────────────────────────────────────────────────────────
@@ -163,6 +176,11 @@ void setup() {
 //   pinMode(pin_aud_sig, OUTPUT);
 //   digitalWrite(pin_aud_sig, LOW);
 
+//   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);  // disable brownout detector
+
+  // memory optimization
+  esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
+
   Serial.begin(115200);
 
   Serial.println("                                                                                                                ");
@@ -197,7 +215,11 @@ void setup() {
   }
 
   Serial.println("Setting up IO expander...");
-  Wire.begin(pin_gio_sda, pin_gio_scl, 400000UL);
+  // Enable internal pull-ups on I2C pins — external pull-ups may be on old
+  // GPIO0 trace; internal ~45 kΩ keeps SDA/SCL high while idle.
+//   pinMode(pin_gio_sda, INPUT_PULLUP);
+//   pinMode(pin_gio_scl, INPUT_PULLUP);
+  Wire.begin(pin_gio_sda, pin_gio_scl, 100000UL);
   if (io.begin(sx1509_address) == false)
   {
     Serial.printf("Failed to communicate. Check wiring and address(%x) of SX1509.\n", sx1509_address);
@@ -213,8 +235,7 @@ void setup() {
 
   Serial.println("Setting up LCD...");
   display.lcd_init();
-  // display.setTextWrap(false);
-//   enterGallery(0);
+  lcd = &display;
 
   Serial.println("Setting up motor driver...");
   motor.begin();
@@ -222,10 +243,6 @@ void setup() {
   motor.standby(true);
   motor.set_motor1(-20);
   motor.set_motor2(200);
-
-  Serial.println("Setting up ws2812...");
-  leds.begin();
-  leds.power(HIGH);
   
   Serial.println("Setting up RTC driver...");
   rtcDriver.begin();
@@ -252,17 +269,16 @@ void setup() {
   Serial.println("Setting up battery driver...");
   battery.begin();
 
-  // Serial.println("Setting up audio driver...");
+  Serial.println("Setting up audio driver...");
 
-  // File root = SPIFFS.open("/");
-  // File f = root.openNextFile();
-  // while (f) {
-  //     Serial.printf("  %s  %u bytes\n", f.name(), f.size());
-  //     f = root.openNextFile();
-  // }
+  File root = SPIFFS.open("/");
+  File f = root.openNextFile();
+  while (f) {
+      Serial.printf("  %s  %u bytes\n", f.name(), f.size());
+      f = root.openNextFile();
+  }
 
-  // audio.begin();
-  // audio.play("/3 Doors Down - Kryptonite.mp3");
+  // audio deferred to loop() — libhelix needs ~9 KB contiguous heap
 
   Serial.println("Setting up touch pins...");
   touch.begin();
@@ -280,28 +296,44 @@ void setup() {
 
   Serial.println("Setting up time manager...");
   timeManager.begin();
+
+//   Serial.println("Setting up web dashboard...");
+//   dashboard.begin();
+
+  Serial.println("Setting up web fetcher...");
+  WebFetcher::instance().begin(&timeManager);
+
+//   Serial.println("Setting up debug CLI...");
+//   debugCLI.begin();
+
   {
-      Station stations[NvsStore::MAX_STATIONS];
-      int count = nvsStore.loadStations(stations, NvsStore::MAX_STATIONS);
-      webAudio.setStations(stations, count);
+      RssFeedEntry rssFeeds[NvsStore::MAX_RSS_FEEDS];
+      int rssCount = nvsStore.loadRssFeeds(rssFeeds, NvsStore::MAX_RSS_FEEDS);
+      for (int i = 0; i < rssCount; i++) {
+          News::feed.addFeed(rssFeeds[i].url);
+      }
+      Serial.printf("[news] %d RSS feeds registered\n", rssCount);
   }
 
-  Serial.println("Setting up web audio...");
-  webAudio.begin();
-  webAudio.setVolume(nvsStore.lastVolume());
-  if (nvsStore.lastPlaying()) {
-      webAudio.play(nvsStore.lastStation());
-  }
+  Serial.println("Setting up carousel...");
+  auto& carousel = CarouselManager::instance();
+  carousel.setDisplay(&display);
+  carousel.setInput(&adcKeys, &touch);
+  carousel.add(&timeEl,    30000UL);
+  carousel.add(&weatherEl, 30000UL);
+  carousel.add(&eyeEl,     30000UL);
+//   carousel.add(&newsEl,    30000UL);
+  carousel.begin(millis());
 
-  DataBroker::instance().update(Topic::AUDIO, [&](Blackboard& b) {
-      b.audio_station_index = webAudio.current_index();
-      b.audio_station_name  = webAudio.current_name();
-      b.audio_volume        = webAudio.volume();
-      b.audio_playing       = nvsStore.lastPlaying();
-  });
 
-  Serial.println("Setting up debug CLI...");
-  debugCLI.begin();
+  Serial.println("Setting up ws2812...");
+  pinMode(pin_gio_ws2812, OUTPUT);
+  digitalWrite(pin_gio_ws2812, LOW);
+//   leds.begin();
+//   leds.power(HIGH);
+
+
+
 }
 
 static const char* gem_key_name(byte key) {
@@ -385,12 +417,28 @@ void loop() {
     wifi.process();
     timeManager.update();
 
-    static bool dashboardStarted = false;
-    if (!dashboardStarted && wifi.is_connected()) {
-        dashboard.begin();
-        dashboardStarted = true;
+    static bool audioStarted = false;
+    if (!audioStarted && wifi.is_connected()) {
+        Serial.printf("[audio] deferred init (heap: %u, block: %u)\n",
+                      ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+        {
+            Station stations[NvsStore::MAX_STATIONS];
+            int count = nvsStore.loadStations(stations, NvsStore::MAX_STATIONS);
+            webAudio.setStations(stations, count);
+        }
+        webAudio.begin();
+        webAudio.setVolume(0.5f);
+        webAudio.play(0);
+        DataBroker::instance().update(Topic::AUDIO, [&](Blackboard& b) {
+            b.audio_station_index = webAudio.current_index();
+            b.audio_station_name  = webAudio.current_name();
+            b.audio_volume        = webAudio.volume();
+            b.audio_playing       = true;
+        });
+        audioStarted = true;
     }
-    dashboard.update();
+
+    // dashboard.update();
 
     // Publish sensor data to broker at ~5 Hz
     auto& db = DataBroker::instance();
@@ -428,6 +476,13 @@ void loop() {
                 strncpy(b.wifi_ssid, wifi.ssid().c_str(), sizeof(b.wifi_ssid) - 1);
             }
         });
+
+        static unsigned long lastHeapLog = 0;
+        if (millis() - lastHeapLog >= 10000) {
+            lastHeapLog = millis();
+            Serial.printf("[heap] free=%u block=%u\n",
+                          ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+        }
     }
 
     // Apply commands from blackboard to hardware
@@ -446,7 +501,7 @@ void loop() {
         leds.show();
     }
 
-    if (db.consume(Topic::AUDIO)) {
+    if (audioStarted && db.consume(Topic::AUDIO)) {
         auto snap = db.snapshot();
         switch (snap.audio_cmd) {
             case AudioCmd::PLAY: webAudio.play(snap.audio_station_index); break;
@@ -477,33 +532,7 @@ void loop() {
         nvsStore.savePlaybackState(webAudio.current_index(), isPlaying, webAudio.volume());
     }
 
-    adcKeys.tick();
-    ButtonPress bp;
-    while (xQueueReceive(adcKeys.queue(), &bp, 0) == pdTRUE) {
-        Serial.printf("[adc_keys] %s\n", gem_key_name(bp.button));
-        db.update(Topic::BUTTON, [&](Blackboard& b) {
-            b.last_button = bp.button;
-        });
-    }
-    // adcKeys.debug();
-
-    {
-        PetGesture g = touch.tick();
-        switch (g) {
-            case PetGesture::DOWN: Serial.println("[touch] pet down"); break;
-            case PetGesture::UP:   Serial.println("[touch] pet up");   break;
-            default: break;
-        }
-        if (g != PetGesture::NONE) {
-            db.update(Topic::TOUCH, [g](Blackboard& b) {
-                b.last_gesture = static_cast<uint8_t>(g);
-            });
-        }
-    }
-    // touch.tickB();
-
-    
-    leds.led_breath();
+    // leds.led_breath();
     // static unsigned long _last_print = 0;
     // if (millis() - _last_print >= 500) {
     //     _last_print = millis();

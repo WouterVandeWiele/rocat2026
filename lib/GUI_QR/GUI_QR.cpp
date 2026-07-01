@@ -2,38 +2,40 @@
 #include "GUI_Utils.h"
 #include "SED1530_LCD.h"
 #include "qrcodesed.h"
+#include "carousel_manager.h"
 #include <Arduino.h>
 #include <string.h>
-
-extern SED1530_LCD display;
-static QRcode_SED1530 _qr(&display);
 
 static void _show(const char* qr_text,
                   const char* l1, const char* l2,
                   const char* bottom) {
     clearCanvas();
 
-    _qr.init();
-    _qr.create(qr_text);
+    QRcode_SED1530 qr(lcd);
+    qr.init();
+    qr.create(qr_text);
 
-    int max_chars = _qr.getOffsetX() / CHAR_W;
-    display.setTextSize(1);
-    display.setTextColor(GLCD_COLOR_SET);
-    if (l1) { display.setCursor(0, 4);  display.write((const uint8_t*)l1, min((int)strlen(l1), max_chars)); }
-    if (l2) { display.setCursor(0, 14); display.write((const uint8_t*)l2, min((int)strlen(l2), max_chars)); }
-    if (bottom) { display.setCursor(0, 40); display.print(bottom); }
+    int max_chars = qr.getOffsetX() / CHAR_W;
+    lcd->setTextSize(1);
+    lcd->setTextColor(GLCD_COLOR_SET);
+    if (l1) { lcd->setCursor(0, 4);  lcd->write((const uint8_t*)l1, min((int)strlen(l1), max_chars)); }
+    if (l2) { lcd->setCursor(0, 14); lcd->write((const uint8_t*)l2, min((int)strlen(l2), max_chars)); }
+    if (bottom) { lcd->setCursor(0, 40); lcd->print(bottom); }
 
-    display.updateWholeScreen();
+    lcd->updateWholeScreen();
     delay(10);
-    display.updateWholeScreen();
+    lcd->updateWholeScreen();
 }
 
 void GUI_QR::clear() {
     clearCanvas();
-    display.updateWholeScreen();
+    lcd->updateWholeScreen();
+    CarouselManager::instance().release();
 }
 
 void GUI_QR::show_wifi(const char* ssid, const char* password) {
+    CarouselManager::instance().override();
+
     char buf[128];
     if (password && password[0] != '\0')
         snprintf(buf, sizeof(buf), "WIFI:S:%s;T:WPA;P:%s;;", ssid, password);
@@ -44,6 +46,8 @@ void GUI_QR::show_wifi(const char* ssid, const char* password) {
 }
 
 void GUI_QR::show_url(const char* url) {
+    CarouselManager::instance().override();
+
     const char* ip = url;
     if (strncmp(url, "http://", 7) == 0)
         ip = url + 7;

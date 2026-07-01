@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+struct location_t;
 class RtcDriver;
 class WifiDriver;
 class NvsStore;
@@ -38,7 +39,9 @@ public:
     const char* timezone();
 
     bool autoConfigureFromGeo();
+    void applyGeoTimezone(const location_t& loc);
     void requestSync();
+    void notifyNtpSuccess();
 
     unsigned long timeSinceNtpSync();
     bool hasNtpSynced();
@@ -58,6 +61,7 @@ private:
     static constexpr unsigned long DAILY_MS  = 86400000UL;
 
     bool _autoConfigured = false;
+    bool _ntpRequested   = false;
 
     void _syncExternalToInternal();
     bool _syncNtpToExternal();

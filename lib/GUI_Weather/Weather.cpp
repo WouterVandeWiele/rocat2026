@@ -3,11 +3,9 @@
 #include "WeatherAnim.h"
 #include <math.h>
 
-extern SED1530_LCD display;
-
 namespace Weather {
 
-static const unsigned long FETCH_MS    = 3600000UL;
+static const unsigned long FETCH_MS    = 86400000UL;  // 24 h
 static const unsigned long SCREEN_MS   = 8000UL;
 static const int           NUM_SCREENS = 2;
 
@@ -80,8 +78,6 @@ static const WeatherStrings& STR = STR_EN;
 
 static GFXcanvas1  animCanvas(WeatherAnim::W, WeatherAnim::H);
 static WeatherAnim weatherAnim;
-static IPGeo       ipgeo;
-static OpenMeteo   meteo;
 
 weather_t  w   = {};
 location_t loc = {};
@@ -122,12 +118,12 @@ static const char* windCardinal(int deg) {
 // compass needle settling on its bearing.
 static void drawCompassArrow(int cx, int cy, int r, int degFrom, unsigned long ph) {
     // ── bezel ─────────────────────────────────────────────────────────────────
-    display.drawCircle(cx, cy, r, GLCD_COLOR_SET);
+    lcd->drawCircle(cx, cy, r, GLCD_COLOR_SET);
     // Cardinal tick marks — N is longer so the compass orientation is legible
-    display.drawLine(cx,     cy - r,     cx,     cy - r + 3, GLCD_COLOR_SET);  // N
-    display.drawLine(cx,     cy + r,     cx,     cy + r - 2, GLCD_COLOR_SET);  // S
-    display.drawLine(cx - r, cy,         cx - r + 2, cy,     GLCD_COLOR_SET);  // W
-    display.drawLine(cx + r, cy,         cx + r - 2, cy,     GLCD_COLOR_SET);  // E
+    lcd->drawLine(cx,     cy - r,     cx,     cy - r + 3, GLCD_COLOR_SET);  // N
+    lcd->drawLine(cx,     cy + r,     cx,     cy + r - 2, GLCD_COLOR_SET);  // S
+    lcd->drawLine(cx - r, cy,         cx - r + 2, cy,     GLCD_COLOR_SET);  // W
+    lcd->drawLine(cx + r, cy,         cx + r - 2, cy,     GLCD_COLOR_SET);  // E
 
     // ── needle ────────────────────────────────────────────────────────────────
     float wobble = 3.0f * sinf((float)(ph % 4000u) / 636.6f);  // 636.6 ≈ 4000/(2π)
@@ -147,14 +143,14 @@ static void drawCompassArrow(int cx, int cy, int r, int degFrom, unsigned long p
     int rgtY  = cy - (int)roundf(HW *   sdx);
 
     // Front half: solid — indicates the wind direction at a glance
-    display.fillTriangle(tipFx, tipFy, lftX, lftY, rgtX, rgtY, GLCD_COLOR_SET);
+    lcd->fillTriangle(tipFx, tipFy, lftX, lftY, rgtX, rgtY, GLCD_COLOR_SET);
     // Rear half: outline only — classic counterweight, visible against the bezel
-    display.drawLine(tipRx, tipRy, lftX, lftY, GLCD_COLOR_SET);
-    display.drawLine(tipRx, tipRy, rgtX, rgtY, GLCD_COLOR_SET);
+    lcd->drawLine(tipRx, tipRy, lftX, lftY, GLCD_COLOR_SET);
+    lcd->drawLine(tipRx, tipRy, rgtX, rgtY, GLCD_COLOR_SET);
 
     // ── pivot bearing ─────────────────────────────────────────────────────────
-    display.fillCircle(cx, cy, 2, GLCD_COLOR_CLEAR);  // erase needle centre
-    display.drawCircle(cx, cy, 2, GLCD_COLOR_SET);    // bearing ring
+    lcd->fillCircle(cx, cy, 2, GLCD_COLOR_CLEAR);  // erase needle centre
+    lcd->drawCircle(cx, cy, 2, GLCD_COLOR_SET);    // bearing ring
 }
 
 // ── screens ───────────────────────────────────────────────────────────────────
@@ -162,25 +158,25 @@ static void drawCompassArrow(int cx, int cy, int r, int degFrom, unsigned long p
 static void drawScreen1(unsigned long phaseMs) {
     clearCanvas();
     weatherAnim.draw(animCanvas, w.weather_code, w.is_day, phaseMs);
-    display.drawBitmap(ANIM_X, ANIM_Y,
+    lcd->drawBitmap(ANIM_X, ANIM_Y,
                        animCanvas.getBuffer(),
                        WeatherAnim::W, WeatherAnim::H, GLCD_COLOR_SET);
-    display.setTextSize(1);
-    display.setTextColor(GLCD_COLOR_SET);
-    display.setTextWrap(false);
+    lcd->setTextSize(1);
+    lcd->setTextColor(GLCD_COLOR_SET);
+    lcd->setTextWrap(false);
 
     char buf[12];
     // Temperature — value only; the unit makes it self-explanatory
     snprintf(buf, sizeof(buf), "%.1f\xB0""C", w.temperature);
-    display.setCursor(S1_TEXT_X, 4); display.print(buf);
+    lcd->setCursor(S1_TEXT_X, 4); lcd->print(buf);
 
     // Feels-like — translated prefix + value
     snprintf(buf, sizeof(buf), "%s%.1f\xB0""C", STR.feelsLike, w.apparent_temperature);
-    display.setCursor(S1_TEXT_X, 16); display.print(buf);
+    lcd->setCursor(S1_TEXT_X, 16); lcd->print(buf);
 
     // Humidity — translated label
     snprintf(buf, sizeof(buf), "%s: %d%%", STR.humidity, w.humidity);
-    display.setCursor(S1_TEXT_X, 28); display.print(buf);
+    lcd->setCursor(S1_TEXT_X, 28); lcd->print(buf);
 
     // Scrolling weather description across the full bottom strip
     const char* desc   = weatherDescription(w.weather_code);
@@ -188,9 +184,9 @@ static void drawScreen1(unsigned long phaseMs) {
     int         totalW = LCD_W + textW;
     int         period = totalW * DESC_SCROLL_MS;
     int         x = LCD_W - (int)((phaseMs % (unsigned long)period) * totalW / period);
-    display.setCursor(x, 40);
-    display.print(desc);
-    display.display();
+    lcd->setCursor(x, 40);
+    lcd->print(desc);
+    lcd->display();
 }
 
 // Screen 2: animated wind compass (left) + wind speed, direction, cloud,
@@ -198,54 +194,46 @@ static void drawScreen1(unsigned long phaseMs) {
 // precipitation = total liquid (rain + showers); snowfall in cm.
 static void drawScreen2(unsigned long phaseMs) {
     clearCanvas();
-    display.setTextSize(1);
-    display.setTextColor(GLCD_COLOR_SET);
-    display.setTextWrap(false);
+    lcd->setTextSize(1);
+    lcd->setTextColor(GLCD_COLOR_SET);
+    lcd->setTextWrap(false);
 
     drawCompassArrow(COMP_CX, COMP_CY, COMP_R, w.wind_direction, phaseMs);
 
     char buf[12];
     snprintf(buf, sizeof(buf), "%.1fkm/h", w.wind_speed);
-    display.setCursor(S2_TEXT_X, 2); display.print(buf);
+    lcd->setCursor(S2_TEXT_X, 2); lcd->print(buf);
 
-    display.setCursor(S2_TEXT_X, 12);
-    display.print(windCardinal(w.wind_direction));
+    lcd->setCursor(S2_TEXT_X, 12);
+    lcd->print(windCardinal(w.wind_direction));
 
     snprintf(buf, sizeof(buf), "%s: %d%%", STR.cloud, w.cloud_cover);
-    display.setCursor(S2_TEXT_X, 21); display.print(buf);
+    lcd->setCursor(S2_TEXT_X, 21); lcd->print(buf);
 
     snprintf(buf, sizeof(buf), "%s:%.1fmm", STR.rain, w.precipitation);
-    display.setCursor(S2_TEXT_X, 30); display.print(buf);
+    lcd->setCursor(S2_TEXT_X, 30); lcd->print(buf);
 
     snprintf(buf, sizeof(buf), "%s:%.1fcm", STR.snow, w.snowfall);
-    display.setCursor(S2_TEXT_X, 39); display.print(buf);
+    lcd->setCursor(S2_TEXT_X, 39); lcd->print(buf);
 
-    display.display();
+    lcd->display();
 }
 
 // ── public API ────────────────────────────────────────────────────────────────
+
+void fetch(unsigned long now) {
+    (void)now;
+}
 
 void init(unsigned long now) {
     _screen     = 0;
     _lastSwitch = now;
     _rotsDone   = 0;
-
-    if (!w.status || now - _lastFetch >= FETCH_MS) {
-        showSplash(STR.loading);
-        loc = ipgeo.getLocation();
-        if (loc.status) {
-            w = meteo.getWeather(loc.lat, loc.lon);
-            if (w.status)
-                Serial.printf("[weather] %.1f°C  code=%d  sev=%d\n",
-                              w.temperature, w.weather_code, severity());
-        }
-        _lastFetch = now;
-    }
     Serial.println("[weather] init");
 }
 
 bool tick(unsigned long now) {
-    if (!w.status) { showSplash(STR.noData, STR.noDataSub); delay(500); return false; }
+    if (!w.status) { showSplash(STR.loading); return true; }
 
     if (now - _lastSwitch >= SCREEN_MS) {
         _screen++;

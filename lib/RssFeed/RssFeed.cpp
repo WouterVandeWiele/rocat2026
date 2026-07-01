@@ -1,4 +1,5 @@
 #include "RssFeed.h"
+#include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <string.h>
@@ -46,16 +47,31 @@ static void extractField(char* dst, int dstSize,
 
 // ---- HTTP download -------------------------------------------------------
 
-static int download(const char* url) {
-    WiFiClientSecure client;
-    client.setInsecure();
+static int download(const char* url,
+                    WiFiClient* extPlain, WiFiClientSecure* extSecure) {
+    bool isHttps = (strncmp(url, "https", 5) == 0);
+
+    WiFiClient localPlain;
+    WiFiClientSecure localSecure;
+
+    WiFiClient* plain  = extPlain  ? extPlain  : &localPlain;
+    WiFiClientSecure* secure = extSecure ? extSecure : &localSecure;
+    if (isHttps && !extSecure) secure->setInsecure();
+
+    if (isHttps) {
+        Serial.printf("[RssFeed] HTTPS connect (heap: %u, block: %u)\n",
+                      ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    }
+
     HTTPClient http;
-    http.begin(client, url);
+    if (isHttps) http.begin(*secure, url);
+    else         http.begin(*plain, url);
     http.setTimeout(15000);
 
     int code = http.GET();
     if (code != HTTP_CODE_OK) {
-        Serial.printf("[RssFeed] HTTP %d for %s\n", code, url);
+        Serial.printf("[RssFeed] HTTP %d for %s (heap: %u, block: %u)\n",
+                      code, url, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
         http.end();
         return 0;
     }
@@ -86,12 +102,14 @@ static int download(const char* url) {
 // ---- public API ----------------------------------------------------------
 
 void RssFeed::addFeed(const char* url) {
-    if (_feedCount < RSS_MAX_FEEDS) _urls[_feedCount++] = url;
+    if (_feedCount >= RSS_MAX_FEEDS) return;
+    strncpy(_urls[_feedCount], url, sizeof(_urls[0]) - 1);
+    _urls[_feedCount][sizeof(_urls[0]) - 1] = '\0';
+    _feedCount++;
 }
 
 void RssFeed::addItem(const char* title, const char* desc) {
-    int cap = RSS_MAX_FEEDS * RSS_ITEMS_PER_FEED;
-    if (_count >= cap) return;
+    if (_count >= RSS_MAX_ITEMS) return;
     RssItem& it = _items[_count++];
     memset(&it, 0, sizeof(it));
     strncpy(it.title, title, RSS_MAX_TITLE - 1);
@@ -99,11 +117,18 @@ void RssFeed::addItem(const char* title, const char* desc) {
 }
 
 int RssFeed::fetchAll(RssFetchCallback onProgress) {
+    return fetchAll(nullptr, nullptr, onProgress);
+}
+
+int RssFeed::fetchAll(WiFiClient* plain, WiFiClientSecure* secure,
+                      RssFetchCallback onProgress) {
     memset(_items, 0, sizeof(_items));
     _count = 0;
+    if (_feedCount == 0) return 0;
+    int perFeed = RSS_MAX_ITEMS / _feedCount;
     for (int i = 0; i < _feedCount; i++) {
         if (onProgress) onProgress(i, _feedCount);
-        _count += _fetchOne(_urls[i], RSS_ITEMS_PER_FEED, i * RSS_ITEMS_PER_FEED);
+        _count += _fetchOne(_urls[i], perFeed, _count, plain, secure);
     }
     Serial.printf("[RssFeed] Total items: %d\n", _count);
     return _count;
@@ -111,8 +136,9 @@ int RssFeed::fetchAll(RssFetchCallback onProgress) {
 
 // ---- parser (private) ----------------------------------------------------
 
-int RssFeed::_fetchOne(const char* url, int limit, int offset) {
-    if (download(url) == 0) return 0;
+int RssFeed::_fetchOne(const char* url, int limit, int offset,
+                       WiFiClient* plain, WiFiClientSecure* secure) {
+    if (download(url, plain, secure) == 0) return 0;
 
     const char* xml = xmlBuf;
 

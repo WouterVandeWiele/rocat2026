@@ -7,7 +7,7 @@ static const char* URL =
 static const uint32_t MAX_RETRIES   = 5;
 static const uint32_t RETRY_DELAY_MS = 2000;
 
-location_t IPGeo::getLocation() {
+static location_t _fetch(WiFiClient& client) {
     location_t result = {};
 
     for (uint32_t attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -16,7 +16,6 @@ location_t IPGeo::getLocation() {
             delay(RETRY_DELAY_MS);
         }
 
-        WiFiClient client;
         HTTPClient http;
         http.begin(client, URL);
         int code = http.GET();
@@ -28,10 +27,10 @@ location_t IPGeo::getLocation() {
         }
 
         JsonDocument doc;
-        String raw = http.getString();
+        String body = http.getString();
         http.end();
+        DeserializationError err = deserializeJson(doc, body);
 
-        DeserializationError err = deserializeJson(doc, raw);
         if (err) {
             Serial.printf("[IPGeo] JSON error: %s\n", err.c_str());
             continue;
@@ -55,6 +54,15 @@ location_t IPGeo::getLocation() {
 
     Serial.println("[IPGeo] All retries failed.");
     return result;
+}
+
+location_t IPGeo::getLocation() {
+    WiFiClient client;
+    return _fetch(client);
+}
+
+location_t IPGeo::getLocation(WiFiClient& client) {
+    return _fetch(client);
 }
 
 location_t IPGeo::getLocation(float lat, float lon) {

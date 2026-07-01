@@ -44,6 +44,8 @@ void AudioWebDriver::begin() {
     _guard = xSemaphoreCreateMutex();
 
     auto cfg = _out.defaultConfig();
+    cfg.buffer_count = 8;    // more DMA buffers absorbs WiFi interrupt latency
+    cfg.buffer_size  = 512;  // larger buffer per slot
     _out.begin(cfg);
 
     _player.setAutoNext(false);

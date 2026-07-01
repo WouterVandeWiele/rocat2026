@@ -18,18 +18,20 @@ RtcDriver::RtcDriver(TwoWire& wire)
 void RtcDriver::begin() {
     std::lock_guard<std::mutex> lck(i2c_operations);
 
-    if (! _rtc.begin(&_wire)) {
-    Serial.println("Couldn't find RTC");
+    if (!_rtc.begin(&_wire)) {
+        Serial.println("[rtc] PCF8523 not found");
     }
 
     if (_rtc.lostPower()) {
-        Serial.println("RTC is NOT initialized, let's set the time!");
-        _rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); 
+        Serial.println("[rtc] oscillator stopped — seeding from compile time");
+        _rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    } else {
+        DateTime dt = _rtc.now();
+        Serial.printf("[rtc] time: %04d-%02d-%02d %02d:%02d:%02d\n",
+                      dt.year(), dt.month(), dt.day(),
+                      dt.hour(), dt.minute(), dt.second());
     }
 
-    // _rtc.start();
-    // Disable CLKOUT (COF=111) so the pin is high-Z and INT1 can be used cleanly
-    // _write_reg(REG_TMR_CLKOUT, _read_reg(REG_TMR_CLKOUT) | 0x07);
     _rtc.writeSqwPinMode(PCF8523_OFF);
 }
 
@@ -40,18 +42,16 @@ DateTime RtcDriver::get_time() {
 
 void RtcDriver::set_time(const DateTime& dt) {
     std::lock_guard<std::mutex> lck(i2c_operations);
-    // _rtc.stop();
     _rtc.adjust(dt);
-    // _rtc.start();
 }
 
 void RtcDriver::set_alarm(uint8_t day, uint8_t hour, uint8_t minute) {
     std::lock_guard<std::mutex> lck(i2c_operations);
-    _write_reg(REG_MINUTE_ALARM, to_bcd(minute));   // AEN=0: active
+    _write_reg(REG_MINUTE_ALARM, to_bcd(minute));
     _write_reg(REG_HOUR_ALARM,   to_bcd(hour));
     _write_reg(REG_DAY_ALARM,    to_bcd(day));
-    _write_reg(REG_WDAY_ALARM,   0x80);             // AEN=1: weekday alarm unused
-    _write_reg(REG_CONTROL_1, _read_reg(REG_CONTROL_1) | (1 << 1)); // set AIE
+    _write_reg(REG_WDAY_ALARM,   0x80);
+    _write_reg(REG_CONTROL_1, _read_reg(REG_CONTROL_1) | (1 << 1));
 }
 
 AlarmSettings RtcDriver::get_alarm() {
@@ -65,12 +65,12 @@ AlarmSettings RtcDriver::get_alarm() {
 
 void RtcDriver::clear_alarm_flag() {
     std::lock_guard<std::mutex> lck(i2c_operations);
-    _write_reg(REG_CONTROL_2, _read_reg(REG_CONTROL_2) & ~(1 << 3)); // clear AF
+    _write_reg(REG_CONTROL_2, _read_reg(REG_CONTROL_2) & ~(1 << 3));
 }
 
 void RtcDriver::disable_alarm() {
     std::lock_guard<std::mutex> lck(i2c_operations);
-    _write_reg(REG_CONTROL_1, _read_reg(REG_CONTROL_1) & ~(1 << 1)); // clear AIE
+    _write_reg(REG_CONTROL_1, _read_reg(REG_CONTROL_1) & ~(1 << 1));
 }
 
 void RtcDriver::_write_reg(uint8_t reg, uint8_t val) {

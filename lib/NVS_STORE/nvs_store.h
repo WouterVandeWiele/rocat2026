@@ -7,9 +7,14 @@ struct Station {
     char url[128];
 };
 
+struct RssFeedEntry {
+    char url[128];
+};
+
 class NvsStore {
 public:
-    static constexpr int MAX_STATIONS = 20;
+    static constexpr int MAX_STATIONS  = 20;
+    static constexpr int MAX_RSS_FEEDS = 10;
 
     void begin(const char* ns = "rocat");
 
@@ -20,6 +25,13 @@ public:
     void updateStation(int index, const char* name, const char* url);
     int  stationCount();
     int  defaultCount();
+
+    // RSS feeds
+    int  loadRssFeeds(RssFeedEntry* out, int maxCount);
+    void saveRssFeeds(const RssFeedEntry* feeds, int count);
+    void addRssFeed(const char* url);
+    void removeRssFeed(int index);
+    int  rssFeedCount();
 
     // Playback state
     void  savePlaybackState(int stationIndex, bool playing, float volume);

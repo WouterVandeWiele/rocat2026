@@ -68,7 +68,7 @@ static void renderEye(const EyeParams& p) {
     for (int x = CX - RR_W; x <= CX + RR_W && x < LCD_W; x++) {
         int sTop, sBot;
         if (!socketBound(x, p, &sTop, &sBot)) continue;
-        display.drawLine(x, sTop, x, sBot, GLCD_COLOR_SET);
+        lcd->drawLine(x, sTop, x, sBot, GLCD_COLOR_SET);
 
         int upH = lidHeight(x, p.upBase, p.upLeft, p.upRight);
         int loH = lidHeight(x, p.loBase, p.loLeft, p.loRight);
@@ -78,7 +78,7 @@ static void renderEye(const EyeParams& p) {
         if (loY < sTop) loY = sTop;
 
         if (upY < loY)
-            display.drawLine(x, upY, x, loY, GLCD_COLOR_CLEAR);
+            lcd->drawLine(x, upY, x, loY, GLCD_COLOR_CLEAR);
 
         int pdx = x - p.pupilCX;
         int pr2 = p.pupilR * p.pupilR - pdx * pdx;
@@ -89,10 +89,10 @@ static void renderEye(const EyeParams& p) {
             if (pTop < upY + 1) pTop = upY + 1;
             if (pBot > loY - 1) pBot = loY - 1;
             if (pTop <= pBot)
-                display.drawLine(x, pTop, x, pBot, GLCD_COLOR_SET);
+                lcd->drawLine(x, pTop, x, pBot, GLCD_COLOR_SET);
         }
     }
-    display.display();
+    lcd->display();
 }
 
 // ── wander helpers ────────────────────────────────────────────────────────────

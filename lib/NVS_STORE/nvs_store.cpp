@@ -1,6 +1,12 @@
 #include "nvs_store.h"
 #include <Arduino.h>
 
+static const RssFeedEntry DEFAULT_RSS_FEEDS[] = {
+    {"http://www.vrt.be/vrtnws/nl.rss.articles.xml"},
+    // {"http://feeds.feedburner.com/tweaborssport"},
+};
+static constexpr int DEFAULT_RSS_COUNT = sizeof(DEFAULT_RSS_FEEDS) / sizeof(DEFAULT_RSS_FEEDS[0]);
+
 static const Station DEFAULT_STATIONS[] = {
     {"MNM Hits",       "http://icecast.vrtcdn.be/mnm_hits-mid.mp3"},
     {"MNM",            "http://icecast.vrtcdn.be/mnm-mid.mp3"},
@@ -32,6 +38,17 @@ void NvsStore::begin(const char* ns) {
         _prefs.end();
 
         saveStations(DEFAULT_STATIONS, DEFAULT_COUNT);
+    }
+
+    int rssCount = 0;
+    if (initialized) {
+        _prefs.begin(_ns, true);
+        rssCount = _prefs.getInt("rss_count", 0);
+        _prefs.end();
+    }
+    if (!initialized || rssCount == 0) {
+        Serial.println("[nvs] seeding default RSS feeds");
+        saveRssFeeds(DEFAULT_RSS_FEEDS, DEFAULT_RSS_COUNT);
     }
 }
 
@@ -191,4 +208,73 @@ void NvsStore::loadTimezone(char* buf, size_t len) {
     _prefs.end();
     strncpy(buf, val.c_str(), len - 1);
     buf[len - 1] = '\0';
+}
+
+// ── RSS feeds ────────────────────────────────────────────────────────────────
+
+int NvsStore::rssFeedCount() {
+    _prefs.begin(_ns, true);
+    int count = _prefs.getInt("rss_count", 0);
+    _prefs.end();
+    return count;
+}
+
+int NvsStore::loadRssFeeds(RssFeedEntry* out, int maxCount) {
+    _prefs.begin(_ns, true);
+    int count = _prefs.getInt("rss_count", 0);
+    if (count > maxCount) count = maxCount;
+
+    for (int i = 0; i < count; i++) {
+        char key[10];
+        snprintf(key, sizeof(key), "rss%d_u", i);
+        String url = _prefs.getString(key, "");
+        strncpy(out[i].url, url.c_str(), sizeof(out[i].url) - 1);
+        out[i].url[sizeof(out[i].url) - 1] = '\0';
+    }
+
+    _prefs.end();
+    return count;
+}
+
+void NvsStore::saveRssFeeds(const RssFeedEntry* feeds, int count) {
+    if (count > MAX_RSS_FEEDS) count = MAX_RSS_FEEDS;
+
+    _prefs.begin(_ns, false);
+
+    int oldCount = _prefs.getInt("rss_count", 0);
+    for (int i = count; i < oldCount; i++) {
+        char key[10];
+        snprintf(key, sizeof(key), "rss%d_u", i);
+        _prefs.remove(key);
+    }
+
+    _prefs.putInt("rss_count", count);
+    for (int i = 0; i < count; i++) {
+        char key[10];
+        snprintf(key, sizeof(key), "rss%d_u", i);
+        _prefs.putString(key, feeds[i].url);
+    }
+
+    _prefs.end();
+}
+
+void NvsStore::addRssFeed(const char* url) {
+    RssFeedEntry feeds[MAX_RSS_FEEDS];
+    int count = loadRssFeeds(feeds, MAX_RSS_FEEDS);
+    if (count >= MAX_RSS_FEEDS) return;
+
+    strncpy(feeds[count].url, url, sizeof(feeds[count].url) - 1);
+    feeds[count].url[sizeof(feeds[count].url) - 1] = '\0';
+    saveRssFeeds(feeds, count + 1);
+}
+
+void NvsStore::removeRssFeed(int index) {
+    RssFeedEntry feeds[MAX_RSS_FEEDS];
+    int count = loadRssFeeds(feeds, MAX_RSS_FEEDS);
+    if (index < 0 || index >= count) return;
+
+    for (int i = index; i < count - 1; i++) {
+        feeds[i] = feeds[i + 1];
+    }
+    saveRssFeeds(feeds, count - 1);
 }

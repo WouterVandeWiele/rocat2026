@@ -184,6 +184,7 @@ public:
   // uint8_t index_buffer(uint8_t page, uint8_t column, uint8_t bit);
   void updateWholeScreen(void);
   void updatePages(uint8_t firstPage, uint8_t lastPage);
+  void renderScreen(void);
   void display(void);
 
   // void oled_command(uint8_t c);
@@ -197,7 +198,6 @@ protected:
   // Adafruit_I2CDevice *i2c_dev = NULL; ///< The I2C interface BusIO device
   // int32_t i2c_preclk = 400000,        ///< Configurable 'high speed' I2C rate
   //     i2c_postclk = 100000;           ///< Configurable 'low speed' I2C rate
-  uint8_t *buffer = NULL; ///< Internal 1:1 framebuffer of display mem
   uint32_t mask;
 
   // int16_t window_x1, ///< Dirty tracking window minimum x

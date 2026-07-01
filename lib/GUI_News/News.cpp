@@ -23,11 +23,11 @@ static int           _itemIdx    = 0;
 static uint32_t      _lastHash   = 0xFFFFFFFF;
 
 static void pushIfChanged() {
-    const uint8_t* buf = display.getBuffer();
+    const uint8_t* buf = lcd->getBuffer();
     uint32_t h = 5381;
     for (int i = 0; i < LCD_BUF_BYTES; i++) h = ((h << 5) + h) ^ buf[i];
     if (h == _lastHash) return;
-    display.updatePages(0, (LCD_H / 8) - 1);
+    lcd->updatePages(0, (LCD_H / 8) - 1);
     _lastHash = h;
 }
 
@@ -61,21 +61,21 @@ static void wrapText(const char* text) {
 }
 
 static void drawTitleBar(const char* title, int x) {
-    display.fillRect(0, 0, LCD_W, CHAR_H, GLCD_COLOR_SET);
-    display.setTextSize(1);
-    display.setTextColor(GLCD_COLOR_CLEAR);
-    display.setCursor(x, 0);
-    display.print(title);
+    lcd->fillRect(0, 0, LCD_W, CHAR_H, GLCD_COLOR_SET);
+    lcd->setTextSize(1);
+    lcd->setTextColor(GLCD_COLOR_CLEAR);
+    lcd->setCursor(x, 0);
+    lcd->print(title);
 }
 
 static void drawDescLines(int offset) {
-    display.setTextSize(1);
-    display.setTextColor(GLCD_COLOR_SET);
+    lcd->setTextSize(1);
+    lcd->setTextColor(GLCD_COLOR_SET);
     for (int i = 0; i < wrapCount; i++) {
         int y = DESC_AREA_Y + i * CHAR_H - offset;
         if (y >= LCD_H) break;
-        display.setCursor(0, y);
-        display.print(wrapBuf[i]);
+        lcd->setCursor(0, y);
+        lcd->print(wrapBuf[i]);
     }
 }
 
@@ -106,21 +106,17 @@ static void scrollItem(const RssItem& item) {
 
 bool hasItems() { return feed.count() > 0; }
 
+void fetch(unsigned long now) {
+    (void)now;
+}
+
 void init(unsigned long now) {
-    if (feed.count() == 0 || now - _lastFetch >= FETCH_MS) {
-        showSplash("Fetching news...");
-        feed.fetchAll([](int i, int t){
-            Serial.printf("[news] feed %d/%d\n", i+1, t);
-        });
-        _lastFetch = now;
-        _itemIdx   = 0;
-    }
     Serial.printf("[news] init — item %d/%d\n", _itemIdx, feed.count());
 }
 
 bool tick(unsigned long) {
     int count = feed.count();
-    if (count == 0) return true;
+    if (count == 0) { showSplash("Fetching news..."); return true; }
     if (_itemIdx >= count) _itemIdx = 0;
     const RssItem& item = feed.getItem(_itemIdx);
     _itemIdx = (_itemIdx + 1) % count;

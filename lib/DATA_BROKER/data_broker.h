@@ -7,7 +7,6 @@
 enum class Topic : uint8_t {
     ACCEL, BATTERY, LDR, RTC_TIME,
     MOTOR, LED, AUDIO, WIFI,
-    TOUCH, BUTTON,
     _COUNT
 };
 
@@ -57,9 +56,6 @@ struct Blackboard {
     char wifi_ip[16]    = {};
     char wifi_ssid[33]  = {};
 
-    // Input
-    uint8_t last_gesture = 0;
-    uint8_t last_button  = 0;
 };
 
 class DataBroker {

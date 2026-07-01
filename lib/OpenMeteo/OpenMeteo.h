@@ -23,7 +23,10 @@ struct weather_t {
 
 const char* weatherDescription(int code);
 
+class WiFiClient;
+
 class OpenMeteo {
 public:
     weather_t getWeather(float latitude, float longitude);
+    weather_t getWeather(float latitude, float longitude, WiFiClient& client);
 };

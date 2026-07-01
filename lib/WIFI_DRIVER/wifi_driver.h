@@ -27,10 +27,12 @@ public:
     String ssid() const;
 
 private:
-    WiFiManager _wm;
-    const char* _ap_prefix;
-    const char* _ap_password;
-    char        _ap_name[24];
-    bool        _portal_stopped = false;
-    bool        _showing_wifi_qr = false;
+    void _ensureWm();
+
+    WiFiManager* _wm = nullptr;
+    const char*  _ap_prefix;
+    const char*  _ap_password;
+    char         _ap_name[24];
+    bool         _portal_stopped = false;
+    bool         _showing_wifi_qr = false;
 };

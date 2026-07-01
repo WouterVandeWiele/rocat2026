@@ -2,6 +2,7 @@
 #include "rtc_driver.h"
 #include "wifi_driver.h"
 #include "nvs_store.h"
+#include "web_fetcher.h"
 
 #include "IPGeo.h"
 
@@ -93,20 +94,15 @@ void TimeManager::update() {
     unsigned long now_ms = millis();
 
     if (_wifi.is_connected() && !_autoConfigured) {
-        _autoConfigured = autoConfigureFromGeo();
+        WebFetcher::instance().request(FetchJob::GEO_ONLY);
+        _autoConfigured = true;
     }
 
     bool ntpDue = !_ntpSynced || (now_ms - _lastNtpSync > DAILY_MS);
-    if (_ntpServer[0] && _wifi.is_connected() && ntpDue) {
-        Serial.println("[time] NTP sync due — attempting...");
-        if (_syncNtpToExternal()) {
-            _lastNtpSync    = now_ms;
-            _ntpSynced      = true;
-            _lastHourlySync = now_ms;
-            Serial.println("[time] NTP sync complete — hourly timer reset");
-        } else {
-            Serial.println("[time] NTP sync failed — will retry when conditions are met");
-        }
+    if (_ntpServer[0] && _wifi.is_connected() && ntpDue && !_ntpRequested) {
+        Serial.println("[time] NTP sync due — requesting via WebFetcher...");
+        WebFetcher::instance().request(FetchJob::NTP_SYNC);
+        _ntpRequested = true;
     }
 
     if (now_ms - _lastHourlySync > HOURLY_MS) {
@@ -168,9 +164,50 @@ const char* TimeManager::ntpServer() {
 }
 
 void TimeManager::requestSync() {
-    _ntpSynced = false;
+    _ntpSynced      = false;
+    _ntpRequested   = false;
     _autoConfigured = false;
     Serial.println("[time] manual sync requested — will re-detect timezone and sync NTP");
+}
+
+void TimeManager::notifyNtpSuccess() {
+    _lastNtpSync    = millis();
+    _ntpSynced      = true;
+    _ntpRequested   = false;
+    _lastHourlySync = millis();
+
+    struct tm tm;
+    time_t t = time(nullptr);
+    localtime_r(&t, &tm);
+    _rtc.set_time(DateTime(
+        tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+        tm.tm_hour, tm.tm_min, tm.tm_sec
+    ));
+    Serial.println("[time] NTP success notified — PCF8523 updated");
+}
+
+void TimeManager::applyGeoTimezone(const location_t& loc) {
+    Serial.printf("[time] geo detected: %s, %s (%s)\n",
+                  loc.city, loc.country, loc.timezone);
+
+    const char* posix = _ianaToPosix(loc.timezone);
+    if (posix) {
+        Serial.printf("[time] IANA '%s' → POSIX '%s'\n", loc.timezone, posix);
+        setTimezone(posix);
+    } else {
+        int hours = loc.offsetSeconds / 3600;
+        int mins  = abs(loc.offsetSeconds % 3600) / 60;
+        char fallback[16];
+        if (mins > 0)
+            snprintf(fallback, sizeof(fallback), "<UTC%+d:%02d>%+d:%02d",
+                     -hours, mins, hours, mins);
+        else
+            snprintf(fallback, sizeof(fallback), "<UTC%+d>%+d", -hours, hours);
+        Serial.printf("[time] IANA '%s' not in table — using offset: %s\n",
+                      loc.timezone, fallback);
+        setTimezone(fallback);
+    }
+    _autoConfigured = true;
 }
 
 void TimeManager::setTimezone(const char* tz) {

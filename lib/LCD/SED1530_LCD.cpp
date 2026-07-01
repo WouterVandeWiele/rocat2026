@@ -155,14 +155,13 @@ void SED1530_LCD::writeCommand(uint8_t cmd) {
             clear_mask |= BIT(this->DATA[7-i]);
         }
     }
-    // Same as writeData but A0=LOW (command mode) instead of A0=HIGH (data mode)
+    GPIO.out_w1tc = mask | BIT(A0) | BIT(EN);
     GPIO.out_w1ts = set_mask;
-    GPIO.out_w1tc = clear_mask | BIT(A0); // rw will always be low | BIT(RW);
-    delayMicroseconds(1);
+    delayMicroseconds(2);
     GPIO.out_w1ts = BIT(EN);
-    delayMicroseconds(1);
+    delayMicroseconds(2);
     GPIO.out_w1tc = BIT(EN);
-    delayMicroseconds(1);
+    delayMicroseconds(2);
   #elif !defined(IO_EXPANDER)
     digitalWrite(this->RW, LOW);
     digitalWrite(this->A0, LOW);
@@ -210,16 +209,13 @@ void SED1530_LCD::writeData(uint8_t lcdData) {
     //   0,
     //   0
     // );
-    GPIO.out_w1ts |= set_mask | BIT(A0);  // HIGH
-    GPIO.out_w1tc |= clear_mask; // rw will always be low | BIT(RW);  // LOW
-    // gpio_output_set(0, BIT(EN), 0, 0); // asuming we always bring EN low
-    // delayMicroseconds(10);
-    // gpio_output_set(BIT(EN), 0, 0, 0);
-    delayMicroseconds(1);
-    GPIO.out_w1ts |= BIT(EN);
-    delayMicroseconds(1);
-    GPIO.out_w1tc |= BIT(EN);
-    delayMicroseconds(1);
+    GPIO.out_w1tc = mask | BIT(EN);
+    GPIO.out_w1ts = set_mask | BIT(A0);
+    delayMicroseconds(2);
+    GPIO.out_w1ts = BIT(EN);
+    delayMicroseconds(2);
+    GPIO.out_w1tc = BIT(EN);
+    delayMicroseconds(2);
 
   #elif !defined(IO_EXPANDER)
     digitalWrite(this->RW, LOW);
@@ -290,19 +286,26 @@ void SED1530_LCD::lcd_init() {
 
 void SED1530_LCD::begin()
 {
-  Serial.println("LCD I2C setup");
-  std::lock_guard<std::mutex> lck(i2c_operations);
-  sx.pinMode(RW,  OUTPUT);
-  sx.pinMode(BACKLIGHT,  OUTPUT);
-  sx.pinMode(POWER,  OUTPUT);
+  {
+    std::lock_guard<std::mutex> lck(i2c_operations);
+    sx.pinMode(RW,        OUTPUT, LOW);
+    sx.pinMode(BACKLIGHT, OUTPUT, LOW);
+    sx.pinMode(POWER,     OUTPUT, LOW);
+  }
 
-  sx.digitalWrite(RW, LOW);
-  sx.digitalWrite(BACKLIGHT, LOW);
-  sx.digitalWrite(POWER, LOW);
   delay(100);
-  sx.digitalWrite(POWER, HIGH);
+
+  {
+    std::lock_guard<std::mutex> lck(i2c_operations);
+    sx.digitalWrite(POWER, HIGH);
+  }
+
   delay(200);
-  sx.digitalWrite(BACKLIGHT, HIGH);
+
+  {
+    std::lock_guard<std::mutex> lck(i2c_operations);
+    sx.digitalWrite(BACKLIGHT, HIGH);
+  }
 }
 void SED1530_LCD::resetDisplay() {
   // std::lock_guard<std::mutex> lck(io_operations);
@@ -454,64 +457,37 @@ void SED1530_LCD::fillScreen(uint16_t color) {
 }
 
 void SED1530_LCD::display(void) {
-  updateWholeScreen();
+  renderScreen();
 }
 
 void SED1530_LCD::updateWholeScreen(void) {
-  // uint32_t bytes = ((w + 7) / 8) * h;
-  // if ((buffer = (uint8_t *)malloc(bytes))) {
-  //   memset(buffer, 0, bytes);
-  // }
-  // uint16_t height_page = 8;             // # bits in the page hight
-  uint16_t jump_width = ((this->WIDTH + 7) / 8);  // # bytes is 1 column
-  uint16_t pages = this->HEIGHT / 8;           // # pages in the visible part of the display
+  renderScreen();
+}
 
-  // cast the canvas object to a 2D array
-  // uint8_t (*canvas)[pages][jump_width] = (uint8_t(*)[pages][jump_width])this->buffer;
+void SED1530_LCD::renderScreen(void) {
+  static uint8_t screenBuf[6 * 100];
+  uint16_t pages = this->HEIGHT / 8;
 
-  // draw all pages
-  for (uint16_t p = 0; p < pages; p++){
+  for (uint16_t p = 0; p < pages; p++) {
+    for (uint16_t c = 0; c < this->WIDTH; c++) {
+      uint8_t data = 0;
+      for (uint8_t b = 0; b < 8; b++) {
+        data |= this->getPixel(c, (p * 8) + b) << b;
+      }
+      screenBuf[p * this->WIDTH + c] = data;
+    }
+  }
+
+  for (uint16_t p = 0; p < pages; p++) {
     this->setPage(p);
     this->setColumn(0);
-
-    // draw each column in the page
-    for (uint16_t c = 0; c < this->WIDTH; c++){
-
-      // uint8_t mask = 1 << (c % 8);
-      uint8_t data = 0x00;
-
-
-      // bits of the page are stored in different canvas bytes
-      for(uint8_t b = 0; b < 8; b++) {
-        // uint8_t column_canvas_byte = *canvas[p+b][c/8];
-        data |= this->getPixel(c, (p*8)+b) << b;
-        // uint8_t column_canvas_byte = index_buffer(p, c, b);
-
-        // data |= (column_canvas_byte & mask);
-        // if ( column_canvas_byte & mask) {
-        //   bitSet(data, b);
-        // }
-      }
-
-      this->writeData(data);
+    for (uint16_t c = 0; c < this->WIDTH; c++) {
+      this->writeData(screenBuf[p * this->WIDTH + c]);
     }
   }
   idleDataBus();
 }
 
-void SED1530_LCD::updatePages(uint8_t firstPage, uint8_t lastPage) {
-  uint16_t pages = this->HEIGHT / 8;
-  if (lastPage >= pages) lastPage = pages - 1;
-  for (uint16_t p = firstPage; p <= lastPage; p++) {
-    this->setPage(p);
-    this->setColumn(0);
-    for (uint16_t c = 0; c < this->WIDTH; c++) {
-      uint8_t data = 0x00;
-      for (uint8_t b = 0; b < 8; b++) {
-        data |= this->getPixel(c, (p * 8) + b) << b;
-      }
-      this->writeData(data);
-    }
-  }
-  idleDataBus();
+void SED1530_LCD::updatePages(uint8_t, uint8_t) {
+  renderScreen();
 }

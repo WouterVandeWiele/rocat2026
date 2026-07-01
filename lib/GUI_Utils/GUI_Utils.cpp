@@ -2,16 +2,16 @@
 #include <string.h>
 #include <Arduino.h>
 
-extern SED1530_LCD display;
+SED1530_LCD* lcd = nullptr;
 
-void clearCanvas() { memset(display.getBuffer(), 0, LCD_BUF_BYTES); }
+void clearCanvas() { memset(lcd->getBuffer(), 0, LCD_BUF_BYTES); }
 
 void showSplash(const char* line1, const char* line2) {
     clearCanvas();
-    display.setTextSize(1);
-    display.setTextColor(GLCD_COLOR_SET);
-    display.setCursor(0, line2 ? 16 : 20);
-    display.print(line1);
-    if (line2) { display.setCursor(0, 28); display.print(line2); }
-    display.display();
+    lcd->setTextSize(1);
+    lcd->setTextColor(GLCD_COLOR_SET);
+    lcd->setCursor(0, line2 ? 16 : 20);
+    lcd->print(line1);
+    if (line2) { lcd->setCursor(0, 28); lcd->print(line2); }
+    lcd->display();
 }

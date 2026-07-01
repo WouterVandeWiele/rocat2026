@@ -5,6 +5,7 @@
 namespace News {
     extern RssFeed feed;
     bool hasItems();
+    void fetch(unsigned long now);
     void init(unsigned long now);
     bool tick(unsigned long now);
 }
